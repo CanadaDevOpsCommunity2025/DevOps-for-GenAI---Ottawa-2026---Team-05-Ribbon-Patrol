@@ -1,4 +1,6 @@
 # Table of contents
 
+## Kubepet
+
 * [Functional Specification Document: KubePet](README.md)
-* [Functional Specification Document: GitBounty](functional-specification-document-gitbounty.md)
+* [Page 1](kubepet/page-1.md)
