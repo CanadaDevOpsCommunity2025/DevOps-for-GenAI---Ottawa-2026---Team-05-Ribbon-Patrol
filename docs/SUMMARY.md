@@ -30,4 +30,4 @@
     * [3.1 SpeechRecognition voice fallback](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.1-speechrecognition-voice-fallback.md)
     * [3.2 Image Studio style presets and promotion](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.2-image-studio-style-presets-and-promotion.md)
     * [3.3 End-to-end demo rehearsal and verification](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.3-end-to-end-demo-rehearsal-and-verification.md)
-
+* [Live Workspace Mode](LIVE_WORKSPACE.md)

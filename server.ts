@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import dotenv from 'dotenv';
+import { promises as fsPromises } from 'fs';
 import { execFile } from 'child_process';
 import { evaluateCommand } from './src/server/safety';
 import { basicAuth, isAuthConfigured } from './src/server/auth';
@@ -575,6 +576,41 @@ function workspaceRootPath(): string {
   return process.env.GITPET_WORKSPACE_ROOT?.trim() || process.cwd();
 }
 
+/**
+ * Detects a paused multi-step git operation by probing the marker files git
+ * writes into the git directory. This changes which commands are safe: mid
+ * rebase, the only correct moves are --continue, --skip or --abort, and the
+ * safety policy's operation-in-progress lint depends on this being reported.
+ */
+async function detectInProgressOperation(
+  workspaceRoot: string
+): Promise<'rebase' | 'merge' | 'cherry-pick' | 'revert' | 'bisect' | null> {
+  const gitDirRes = await runGitCommand(['rev-parse', '--git-dir'], workspaceRoot);
+  if (gitDirRes.exitCode !== 0 || !gitDirRes.stdout.trim()) return null;
+
+  const raw = gitDirRes.stdout.trim();
+  const gitDir = path.isAbsolute(raw) ? raw : path.join(workspaceRoot, raw);
+
+  const markers: Array<[string, 'rebase' | 'merge' | 'cherry-pick' | 'revert' | 'bisect']> = [
+    ['rebase-merge', 'rebase'],
+    ['rebase-apply', 'rebase'],
+    ['MERGE_HEAD', 'merge'],
+    ['CHERRY_PICK_HEAD', 'cherry-pick'],
+    ['REVERT_HEAD', 'revert'],
+    ['BISECT_LOG', 'bisect'],
+  ];
+
+  for (const [marker, operation] of markers) {
+    try {
+      await fsPromises.access(path.join(gitDir, marker));
+      return operation;
+    } catch {
+      // Marker absent — keep probing.
+    }
+  }
+  return null;
+}
+
 // Live Git Workspace Scanner
 async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
   // 1. Verify that the workspace root is a valid Git work tree
@@ -945,8 +981,11 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     operatorMeaning = 'Review diff and commit changes when logical unit is complete.';
   }
 
+  const inProgressOperation = await detectInProgressOperation(workspaceRoot);
+
   const liveState = {
     repoName,
+    operation: inProgressOperation,
     currentBranch: {
       name: branchName,
       upstream,

@@ -55,6 +55,10 @@ export default function App() {
   // Live Repo (public GitHub fixture) branch picker state
   const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
   const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
+  // Server capability, read once at startup: live mode can still be read-only
+  // if the operator has not opted into writes.
+  const [writesEnabled, setWritesEnabled] = useState<boolean>(false);
+  const [workspaceRoot, setWorkspaceRoot] = useState<string>('');
 
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
@@ -203,6 +207,26 @@ export default function App() {
   ]);
 
   // Handler for sending messages to Gemini API backend (/api/ai/chat)
+  // Ask the server what it is actually able to do. Live Workspace Mode can
+  // still be read-only, and the repository it inspects is set server-side.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (cancelled) return;
+        setWritesEnabled(Boolean(data.writesEnabled));
+        setWorkspaceRoot(data.workspaceRoot || '');
+      } catch {
+        // Leave the conservative defaults in place.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSendMessage = async (
     userPrompt: string,
     roleOverride?: ChatRole,
@@ -338,6 +362,22 @@ export default function App() {
     // Sandbox keeps the simulated transition below, so demo scenarios still
     // work without touching anything on disk.
     if (isLiveMode) {
+      if (!writesEnabled) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `msg_writes_off_${Date.now()}`,
+            sender: 'system' as const,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text:
+              'Live Workspace is read-only on this server, so nothing was run. ' +
+              'Set GITPET_ALLOW_WRITES=true in .env (and GITPET_WORKSPACE_ROOT to the repository you want GitPet to act on), then restart.',
+          },
+        ]);
+        setExecutingActionId(null);
+        return;
+      }
+
       const previousHealth = repoState.healthPercentage;
       try {
         const res = await fetch('/api/git/execute-action', {
@@ -518,7 +558,8 @@ export default function App() {
                 executed: true,
                 executionResult: {
                   success: true,
-                  message: 'Action completed successfully! Repository state verified and clean.',
+                  message:
+                    'Simulated in Sandbox Mode — no repository was modified. Switch to Live Workspace to run this for real.',
                   previousHealth,
                   newHealth: finalState.healthPercentage,
                 },
@@ -526,6 +567,19 @@ export default function App() {
             : m
         )
       );
+
+      // Say plainly that nothing on disk changed. Without this the sandbox
+      // reports success identically to a real run, which reads as GitPet
+      // silently failing to touch the repository.
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg_sandbox_note_${Date.now()}`,
+          sender: 'system' as const,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `Sandbox Mode: simulated \`${action.command}\`. No files, branches or commits were changed. Toggle Live Workspace in the top bar to run commands against a real repository.`,
+        },
+      ]);
     }, 1200);
   };
 
@@ -596,6 +650,15 @@ export default function App() {
           } else {
             summaryText += `\n\nWorking tree is completely clean!`;
           }
+
+          // State which repository is in scope and whether actions can run.
+          // Without this, a read-only server looks identical to a broken one.
+          if (workspaceRoot) {
+            summaryText += `\n\nRepository: \`${workspaceRoot}\``;
+          }
+          summaryText += writesEnabled
+            ? `\n\n✅ **Actions enabled** — approved commands run against this repository.`
+            : `\n\n🔒 **Read-only** — approved commands will not run. Set \`GITPET_ALLOW_WRITES=true\` in .env and restart to enable them.`;
 
           setMessages((prev) => [
             ...prev,
