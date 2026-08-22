@@ -275,10 +275,14 @@ export default function App() {
       const data = await res.json();
 
       if (data.success && data.reply) {
-        let recAction: RecommendedAction | undefined = undefined;
-        if (repoState.healthLevel !== 'Healthy' && !data.reply.includes('```')) {
-          recAction = messages[0]?.recommendedAction;
-        }
+        // Use the action the server just produced. This previously read
+        // messages[0]?.recommendedAction — the welcome message — so the card
+        // was either stale or, on a healthy repo, absent entirely, which made
+        // "do it" appear to do nothing.
+        const recAction: RecommendedAction | undefined =
+          data.recommendedAction && data.safety?.verdict !== 'block'
+            ? { ...data.recommendedAction, id: data.recommendedAction.id || `act_${Date.now()}` }
+            : undefined;
 
         const assistantMsg: ChatMessage = {
           id: `msg_asst_${Date.now()}`,
@@ -299,6 +303,33 @@ export default function App() {
           recommendedAction: recAction,
         };
         setMessages((prev) => [...prev, assistantMsg]);
+
+        if (data.aiUnavailable) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg_ai_unavailable_${Date.now()}`,
+              sender: 'system' as const,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: data.aiUnavailableReason || 'The AI model was unavailable; deterministic guidance is shown instead.',
+            },
+          ]);
+        }
+
+        if (data.safety?.verdict === 'block') {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg_blocked_${Date.now()}`,
+              sender: 'system' as const,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: `The suggested command was withheld by the safety policy: ${(data.safety.findings || [])
+                .filter((f: any) => f.severity === 'block')
+                .map((f: any) => f.message)
+                .join(' ')}`,
+            },
+          ]);
+        }
       } else {
         const analyzeRes = await fetch('/api/gitpet/analyze', {
           method: 'POST',

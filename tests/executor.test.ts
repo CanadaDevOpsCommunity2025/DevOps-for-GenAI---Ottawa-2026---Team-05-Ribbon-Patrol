@@ -110,3 +110,35 @@ describe('multi-step chains', () => {
     expect(report.commands[0].args).toContain('pre-pull: config && notes');
   });
 });
+
+describe('diverged branches', () => {
+  const diverged = {
+    workingTree: [],
+    stashes: [],
+    currentBranch: { aheadCount: 1, behindCount: 1, isDetached: false, upstream: 'origin/main' },
+  };
+
+  it('blocks a fast-forward pull on a diverged branch and suggests rebase', () => {
+    // git refuses --ff-only when the branch has diverged, so recommending it
+    // is advice that cannot succeed.
+    const report = evaluateCommand('git pull --ff-only origin main', diverged);
+    const finding = report.findings.find((f) => f.code === 'ff-only-on-diverged');
+
+    expect(report.verdict).toBe('block');
+    expect(finding?.suggestion).toContain('--rebase');
+  });
+
+  it('allows a rebase pull on the same branch', () => {
+    const report = evaluateCommand('git pull --rebase origin main', diverged);
+    expect(report.findings.some((f) => f.code === 'ff-only-on-diverged')).toBe(false);
+  });
+
+  it('still allows a fast-forward pull when merely behind', () => {
+    const report = evaluateCommand('git pull --ff-only origin main', {
+      workingTree: [],
+      stashes: [],
+      currentBranch: { aheadCount: 0, behindCount: 3, isDetached: false, upstream: 'origin/main' },
+    });
+    expect(report.verdict).toBe('allow');
+  });
+});

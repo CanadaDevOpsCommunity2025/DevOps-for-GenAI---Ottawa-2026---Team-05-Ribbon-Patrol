@@ -314,6 +314,24 @@ function contextualFindings(
     }
   }
 
+  // A diverged branch cannot fast-forward; git refuses outright. This catches
+  // the mistake wherever it originates — model or rule engine.
+  const ahead = context.currentBranch?.aheadCount ?? 0;
+  const behind = context.currentBranch?.behindCount ?? 0;
+  const ffOnly = commands.find(
+    (c) => c.subcommand === 'pull' && (c.args.includes('--ff-only') || c.args.includes('--ff'))
+  );
+  if (ffOnly && ahead > 0 && behind > 0) {
+    findings.push({
+      severity: 'block',
+      code: 'ff-only-on-diverged',
+      message:
+        `Branch is ${ahead} ahead and ${behind} behind, so it has diverged. ` +
+        'git refuses a fast-forward here — this command will fail without changing anything.',
+      suggestion: ffOnly.raw.replace(/--ff-only|--ff\b/, '--rebase'),
+    });
+  }
+
   // Pushing while behind produces a rejected non-fast-forward.
   if (has('push') && (context.currentBranch?.behindCount ?? 0) > 0) {
     findings.push({

@@ -245,9 +245,44 @@ function generateRuleBasedAction(state: any, userPrompt?: string) {
     };
   }
 
+  if (behindCount > 0 && aheadCount > 0) {
+    return {
+      explanation: `${branch.name} has diverged from ${branch.upstream}: ${aheadCount} local commit(s) it does not have, and ${behindCount} remote commit(s) you do not. A fast-forward is impossible here — git will refuse it. Rebasing replays your local work on top of the incoming commits and keeps history linear.`,
+      recommendedAction: {
+        id: `act_${Date.now()}`,
+        title: 'Rebase Local Commits onto Upstream',
+        summary: `Replay ${aheadCount} local commit(s) on top of ${behindCount} incoming commit(s) from ${branch.upstream}.`,
+        command: `git pull --rebase origin ${branch.name}`,
+        confidence: 'High',
+        confidenceScore: 90,
+        riskLevel: 'Caution',
+        expectedResult: `${branch.name} contains the ${behindCount} upstream commit(s) with your ${aheadCount} local commit(s) replayed on top.`,
+        reversalStep: 'git rebase --abort while the rebase is running, or git reset --keep ORIG_HEAD once it has finished',
+        evidence: [
+          `Branch is ${aheadCount} ahead and ${behindCount} behind — this is divergence, not a simple lag`,
+          'git pull --ff-only refuses a diverged branch, so fast-forward is not an option',
+          'Rebase is reversible with --abort until it completes',
+        ],
+        affectedFiles: files.map((f: any) => f.path),
+        steps: [
+          {
+            label: '1. Rebase onto upstream',
+            command: `git pull --rebase origin ${branch.name}`,
+            details: 'Fetches the incoming commits and replays your local commits on top of them.',
+          },
+        ],
+      },
+      evidencePoints: [
+        `${branch.name} is ${aheadCount} ahead / ${behindCount} behind ${branch.upstream}`,
+        'Fast-forward is impossible on a diverged branch',
+        'Rebase can be aborted at any point before it completes',
+      ],
+    };
+  }
+
   if (behindCount > 0) {
     return {
-      explanation: `${branch.name} is ${behindCount} commits behind ${branch.upstream}. Since your working tree is clean, a fast-forward pull will immediately bring your branch up to date with zero risk.`,
+      explanation: `${branch.name} is ${behindCount} commits behind ${branch.upstream}. Since your working tree is clean and you have no local commits, a fast-forward pull will bring your branch up to date.`,
       recommendedAction: {
         id: `act_${Date.now()}`,
         title: 'Fast-Forward Pull from Upstream',
@@ -1251,6 +1286,7 @@ async function handleChatRequest(req: express.Request, res: express.Response) {
     }
 
     const effectiveTier = modelTier || tier || 'general';
+    let quotaExhausted = false;
 
     // Model selection routing (Official Google Gemini models)
     let modelName = 'gemini-2.5-flash';
@@ -1362,7 +1398,11 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
           evidencePoints: ruleBased.evidencePoints,
         });
       } catch (geminiError: any) {
-        console.warn(`Gemini Chat (${modelName}) failed, falling back to rule engine:`, geminiError?.message || geminiError);
+        const detail = geminiError?.message || String(geminiError);
+        // A 429 here is the free-tier daily cap, not a transient blip — worth
+        // distinguishing so the UI can tell the developer to check the key.
+        quotaExhausted = /429|RESOURCE_EXHAUSTED|quota/i.test(detail);
+        console.warn(`Gemini Chat (${modelName}) failed, falling back to rule engine:`, detail);
       }
     }
 
@@ -1381,6 +1421,13 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
     return res.json({
       requestId,
       success: true,
+      // Surfaced so the UI can say the model was unavailable rather than
+      // quietly presenting deterministic output as an AI answer.
+      aiUnavailable: true,
+      aiUnavailableReason: quotaExhausted
+        ? 'The Gemini API quota for this key is exhausted. Deterministic guidance is shown instead.'
+        : 'The Gemini API call failed. Deterministic guidance is shown instead.',
+      safety: evaluateCommand(ruleBased?.recommendedAction?.command ?? '', state),
       modelUsed: `${modelName} (fallback)`,
       role,
       reply: fallbackReply,
