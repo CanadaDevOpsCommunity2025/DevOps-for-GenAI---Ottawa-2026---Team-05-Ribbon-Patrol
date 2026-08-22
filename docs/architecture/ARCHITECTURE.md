@@ -156,37 +156,6 @@ sequenceDiagram
     end
 ```
 
-### 1.4 Real-Time Bidirectional Voice Stream Sequence
-Illustrates the WebSocket bridge used to deliver low-latency voice assistance with the Gemini Live API.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as Developer
-    participant UI as LiveVoiceModal (Web Audio)
-    participant BE as Backend WebSocket Server
-    participant GeminiLive as Gemini Live WebSocket API
-
-    Dev->>UI: Open Live Voice Modal
-    UI->>BE: Establish WebSocket (ws://localhost:3000/live)
-    BE->>GeminiLive: Authenticate & Initiate Secure TLS Stream
-    GeminiLive-->>BE: Connection Established
-    BE-->>UI: Live Stream Active (Audio Context Started)
-
-    loop Conversation Loop
-        Dev->>UI: Speak (Mic Audio Captured)
-        UI->>BE: Send PCM Audio Chunks (Binary WS)
-        BE->>GeminiLive: Forward secure Audio bytes
-        GeminiLive-->>BE: Stream Response Voice Chunks (PCM Audio)
-        BE-->>UI: Forward Voice Chunks + Text Transcript
-        UI->>Dev: Play Audio out (Speakers) & animate Canvas visualizer
-    end
-
-    Dev->>UI: Click Close / Stop
-    UI->>BE: Close client WebSocket
-    BE->>GeminiLive: Close upstream secure session
-```
-
 ---
 
 ## 2. Component Design & Responsibilities
