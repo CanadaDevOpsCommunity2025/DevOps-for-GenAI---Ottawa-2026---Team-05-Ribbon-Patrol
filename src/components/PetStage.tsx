@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Sparkles,
@@ -18,6 +18,7 @@ import { RepositoryState, SymptomType, HealthLevel } from '../types';
 interface PetStageProps {
   state: RepositoryState;
   onPetClick?: () => void;
+  petTriggerTimestamp?: number;
   customAvatarUrl?: string | null;
   onOpenImageStudio?: () => void;
   onOpenVoiceModal?: () => void;
@@ -26,6 +27,7 @@ interface PetStageProps {
 export const PetStage: React.FC<PetStageProps> = ({
   state,
   onPetClick,
+  petTriggerTimestamp,
   customAvatarUrl,
   onOpenImageStudio,
   onOpenVoiceModal,
@@ -35,6 +37,21 @@ export const PetStage: React.FC<PetStageProps> = ({
   const [avatarMode, setAvatarMode] = useState<'animated' | 'custom'>(
     customAvatarUrl ? 'custom' : 'animated'
   );
+
+  // Trigger floating hearts on programmatic pet trigger (e.g. from Space shortcut)
+  useEffect(() => {
+    if (petTriggerTimestamp) {
+      const newHeart = {
+        id: petTriggerTimestamp,
+        x: 120 + (Math.random() * 40 - 20),
+        y: 80 + (Math.random() * 30 - 15),
+      };
+      setHearts((prev) => [...prev, newHeart]);
+      setTimeout(() => {
+        setHearts((prev) => prev.filter((h) => h.id !== newHeart.id));
+      }, 1200);
+    }
+  }, [petTriggerTimestamp]);
 
   const handleStageClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -299,9 +316,13 @@ export const PetStage: React.FC<PetStageProps> = ({
 
       {/* Floating hint at bottom */}
       <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2.5 mt-1">
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1.5 flex-wrap">
           <Info className="w-3 h-3 text-slate-400" />
-          <span>Click Byte to pet & check ambient responsiveness</span>
+          <span>Click Byte or press</span>
+          <kbd className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[10px] font-mono font-semibold text-slate-600">
+            Space
+          </kbd>
+          <span>to pet</span>
         </span>
         <span className="font-mono text-[10px] bg-slate-50 text-slate-500 border border-slate-200/60 px-1.5 py-0.2 rounded">
           {state.currentBranch.name}

@@ -6,28 +6,71 @@
 let audioCtx: AudioContext | null = null;
 const AUDIO_MUTED_STORAGE_KEY = 'gitpet_audio_muted';
 
+// Rate-limiting timestamps to prevent sound overlapping/distortion
+const lastPlayedTimestamps: Record<string, number> = {
+  sync: 0,
+  alert: 0,
+  pet: 0,
+};
+
+const COOLDOWN_MS: Record<string, number> = {
+  sync: 300,
+  alert: 400,
+  pet: 100,
+};
+
+type MuteListener = (muted: boolean) => void;
+const muteListeners = new Set<MuteListener>();
+
+function notifyMuteListeners(muted: boolean): void {
+  muteListeners.forEach((listener) => {
+    try {
+      listener(muted);
+    } catch (_) {}
+  });
+}
+
+export function subscribeAudioMute(callback: MuteListener): () => void {
+  muteListeners.add(callback);
+  return () => {
+    muteListeners.delete(callback);
+  };
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (AudioContextClass) {
-      audioCtx = new AudioContextClass();
+  try {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass();
+      }
     }
-  }
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  } catch (_) {
+    return null;
   }
   return audioCtx;
 }
 
 export function isAudioMuted(): boolean {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem(AUDIO_MUTED_STORAGE_KEY) === 'true';
+  if (typeof window === 'undefined') return true;
+  // Default to true (muted by default for ambient safety unless explicitly unmuted)
+  const stored = localStorage.getItem(AUDIO_MUTED_STORAGE_KEY);
+  if (stored === null) {
+    return false; // sound enabled by default if not set
+  }
+  return stored === 'true';
 }
 
 export function setAudioMuted(muted: boolean): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(AUDIO_MUTED_STORAGE_KEY, muted ? 'true' : 'false');
+  try {
+    localStorage.setItem(AUDIO_MUTED_STORAGE_KEY, muted ? 'true' : 'false');
+    notifyMuteListeners(muted);
+  } catch (_) {}
 }
 
 export function toggleAudioMuted(): boolean {
@@ -36,11 +79,25 @@ export function toggleAudioMuted(): boolean {
   return next;
 }
 
+function shouldPlaySound(type: string): boolean {
+  if (isAudioMuted()) return false;
+  const now = Date.now();
+  const lastTime = lastPlayedTimestamps[type] || 0;
+  const cooldown = COOLDOWN_MS[type] || 150;
+
+  if (now - lastTime < cooldown) {
+    return false;
+  }
+
+  lastPlayedTimestamps[type] = now;
+  return true;
+}
+
 /**
  * Play a warm ascending melodic chime upon successful repository sync/action.
  */
 export function playSyncSuccessSound(): void {
-  if (isAudioMuted()) return;
+  if (!shouldPlaySound('sync')) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -74,7 +131,7 @@ export function playSyncSuccessSound(): void {
  * Play a subtle dual-tone warning tone when a conflict or unsafe hazard appears.
  */
 export function playConflictAlertSound(): void {
-  if (isAudioMuted()) return;
+  if (!shouldPlaySound('alert')) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -106,7 +163,7 @@ export function playConflictAlertSound(): void {
  * Play a cheerful mascot chirp when petting the mascot.
  */
 export function playPetChirpSound(): void {
-  if (isAudioMuted()) return;
+  if (!shouldPlaySound('pet')) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;

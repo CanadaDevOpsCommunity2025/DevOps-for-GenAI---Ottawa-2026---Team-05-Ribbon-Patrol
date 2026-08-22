@@ -16,6 +16,9 @@ import {
   Mic,
   Activity,
   RefreshCw,
+  Search,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { RepositoryState, PracticeStats, LiveScanState } from '../types';
 
@@ -24,6 +27,7 @@ interface TopBarProps {
   practiceStats: PracticeStats;
   onSelectBranch: (branch: string) => void;
   onToggleDrawer: () => void;
+  onOpenQuickPalette?: () => void;
   onOpenPitchDeck: () => void;
   onOpenImageStudio: () => void;
   onOpenVoiceModal: () => void;
@@ -33,6 +37,8 @@ interface TopBarProps {
   isLiveMode?: boolean;
   liveScanState?: LiveScanState;
   onRefreshLive?: () => void;
+  isAudioMuted?: boolean;
+  onToggleAudio?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -40,6 +46,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   practiceStats,
   onSelectBranch,
   onToggleDrawer,
+  onOpenQuickPalette,
   onOpenPitchDeck,
   onOpenImageStudio,
   onOpenVoiceModal,
@@ -49,6 +56,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   isLiveMode = false,
   liveScanState,
   onRefreshLive,
+  isAudioMuted = false,
+  onToggleAudio,
 }) => {
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showBadgeMenu, setShowBadgeMenu] = useState(false);
@@ -254,6 +263,22 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </div>
 
+          {/* Quick Palette Launcher Button */}
+          {onOpenQuickPalette && (
+            <button
+              id="topbar-quick-palette-btn"
+              onClick={onOpenQuickPalette}
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100/80 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+              title="Open Quick Command Palette (Cmd+K / Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden xl:inline">Palette</span>
+              <kbd className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.2 rounded border border-slate-300 text-slate-500 shadow-2xs">
+                ⌘K
+              </kbd>
+            </button>
+          )}
+
           {/* 90-Second Guided Demo Quick Launch */}
           {onStartDemo && (
             <button
@@ -304,10 +329,31 @@ export const TopBar: React.FC<TopBarProps> = ({
             <span className="hidden lg:inline">Pitch Deck</span>
           </button>
 
+          {/* Audio Sound Toggle */}
+          {onToggleAudio && (
+            <button
+              id="topbar-audio-toggle-btn"
+              onClick={onToggleAudio}
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                isAudioMuted
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 border-slate-200'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 ring-1 ring-emerald-300/60'
+              }`}
+              title={isAudioMuted ? 'Unmute Sound Effects (Web Audio)' : 'Mute Sound Effects'}
+            >
+              {isAudioMuted ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+          )}
+
           {/* Repository Drawer Toggle */}
           <button
             id="toggle-repo-drawer-button"
             onClick={onToggleDrawer}
+            title="Toggle Repository Details Drawer (Cmd+B / Ctrl+B)"
             className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
               isDrawerOpen
                 ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
@@ -316,6 +362,13 @@ export const TopBar: React.FC<TopBarProps> = ({
           >
             <Layers className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Repo Details</span>
+            <kbd
+              className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded ${
+                isDrawerOpen ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500 border border-slate-200'
+              }`}
+            >
+              ⌘B
+            </kbd>
             {state.workingTree.length > 0 && (
               <span
                 className={`text-[10px] px-1 rounded-full font-bold ${

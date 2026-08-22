@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { TopBar } from './components/TopBar';
 import { PetStage } from './components/PetStage';
@@ -10,6 +10,15 @@ import { PitchDeckModal } from './components/PitchDeckModal';
 import { ImageStudioModal } from './components/ImageStudioModal';
 import { LiveVoiceModal } from './components/LiveVoiceModal';
 import { GuidedDemoBar } from './components/GuidedDemoBar';
+import { QuickPaletteModal } from './components/QuickPaletteModal';
+import {
+  isAudioMuted,
+  toggleAudioMuted,
+  subscribeAudioMute,
+  playSyncSuccessSound,
+  playConflictAlertSound,
+  playPetChirpSound,
+} from './utils/audioEffects';
 import {
   MVP_SCENARIO,
   ALL_SCENARIOS,
@@ -92,6 +101,138 @@ export default function App() {
   const [demoElapsedSeconds, setDemoElapsedSeconds] = useState<number>(0);
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
   
+  // Quick Palette & Audio State (Phase 2.4)
+  const [isQuickPaletteOpen, setIsQuickPaletteOpen] = useState<boolean>(false);
+  const [isAudioMutedState, setIsAudioMutedState] = useState<boolean>(() => isAudioMuted());
+  const [petTriggerTimestamp, setPetTriggerTimestamp] = useState<number>(0);
+
+  // Subscribe to audio mute changes
+  useEffect(() => {
+    const unsubscribe = subscribeAudioMute((muted) => {
+      setIsAudioMutedState(muted);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Alert sound when transitioning into Unsafe or Blocked states
+  const prevHealthLevelRef = useRef<string>(repoState.healthLevel);
+  useEffect(() => {
+    if (
+      (repoState.healthLevel === 'Unsafe' || repoState.healthLevel === 'Blocked') &&
+      prevHealthLevelRef.current !== 'Unsafe' &&
+      prevHealthLevelRef.current !== 'Blocked'
+    ) {
+      playConflictAlertSound();
+    }
+    prevHealthLevelRef.current = repoState.healthLevel;
+  }, [repoState.healthLevel]);
+
+  const handlePetByte = () => {
+    setPetTriggerTimestamp(Date.now());
+    playPetChirpSound();
+  };
+
+  const handleToggleAudio = () => {
+    const next = toggleAudioMuted();
+    setIsAudioMutedState(next);
+  };
+
+  // Global Keyboard Shortcuts (Phase 2.4)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isMac = typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC');
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      const activeEl = document.activeElement;
+      const isEditable =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement ||
+        activeEl?.getAttribute('contenteditable') === 'true' ||
+        e.isComposing;
+
+      // 1. Cmd+K / Ctrl+K -> Toggle Quick Palette
+      if (isCmdOrCtrl && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setIsQuickPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // 2. Cmd+B / Ctrl+B -> Toggle Repository Drawer
+      if (isCmdOrCtrl && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        setIsDrawerOpen((prev) => !prev);
+        return;
+      }
+
+      // 3. Escape key -> Strict layered close hierarchy
+      if (e.key === 'Escape') {
+        // Layer 1: Confirmation / Preview Modal
+        if (previewAction) {
+          e.preventDefault();
+          setPreviewAction(null);
+          return;
+        }
+        // Layer 2: Other Open Modals
+        if (isVoiceModalOpen) {
+          e.preventDefault();
+          setIsVoiceModalOpen(false);
+          return;
+        }
+        if (isImageStudioOpen) {
+          e.preventDefault();
+          setIsImageStudioOpen(false);
+          return;
+        }
+        if (isPitchDeckOpen) {
+          e.preventDefault();
+          setIsPitchDeckOpen(false);
+          return;
+        }
+        // Layer 3: Quick Palette
+        if (isQuickPaletteOpen) {
+          e.preventDefault();
+          setIsQuickPaletteOpen(false);
+          return;
+        }
+        // Layer 4: Repository Drawer
+        if (isDrawerOpen) {
+          e.preventDefault();
+          setIsDrawerOpen(false);
+          return;
+        }
+        return;
+      }
+
+      // 4. Space bar -> Pet Mascot (ONLY when NOT in an editable field or active modal)
+      if (e.code === 'Space' || e.key === ' ') {
+        if (
+          !isEditable &&
+          !isQuickPaletteOpen &&
+          !previewAction &&
+          !isVoiceModalOpen &&
+          !isImageStudioOpen &&
+          !isPitchDeckOpen
+        ) {
+          e.preventDefault();
+          handlePetByte();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [
+    previewAction,
+    isVoiceModalOpen,
+    isImageStudioOpen,
+    isPitchDeckOpen,
+    isQuickPaletteOpen,
+    isDrawerOpen,
+  ]);
+
   const [auditHistory, setAuditHistory] = useState<
     { id: string; command: string; timestamp: string; description: string }[]
   >([]);
@@ -301,7 +442,7 @@ export default function App() {
       setRepoState(finalState);
       setExecutingActionId(null);
 
-      // Trigger celebration confetti
+      // Trigger celebration confetti and sync success chime
       try {
         confetti({
           particleCount: 75,
@@ -310,6 +451,9 @@ export default function App() {
           colors: ['#10B981', '#3B82F6', '#6366F1', '#F59E0B'],
         });
       } catch (_) {}
+
+      // Play warm ascending sync success chime
+      playSyncSuccessSound();
 
       // Update practice stats
       setPracticeStats((prev) => ({
@@ -843,6 +987,7 @@ export default function App() {
           }));
         }}
         onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
+        onOpenQuickPalette={() => setIsQuickPaletteOpen(true)}
         onOpenPitchDeck={() => setIsPitchDeckOpen(true)}
         onOpenImageStudio={() => setIsImageStudioOpen(true)}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
@@ -852,6 +997,8 @@ export default function App() {
         isLiveMode={isLiveMode}
         liveScanState={liveScanState}
         onRefreshLive={handleFetchLiveStatus}
+        isAudioMuted={isAudioMutedState}
+        onToggleAudio={handleToggleAudio}
       />
 
       {/* Main Layout Area */}
@@ -908,7 +1055,8 @@ export default function App() {
               customAvatarUrl={customAvatarUrl}
               onOpenImageStudio={() => setIsImageStudioOpen(true)}
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-              onPetClick={() => {}}
+              onPetClick={handlePetByte}
+              petTriggerTimestamp={petTriggerTimestamp}
             />
 
             {/* Quick Practice Metrics Card */}
@@ -998,6 +1146,38 @@ export default function App() {
             handleExecuteAction(messages[0].recommendedAction);
           }
         }}
+      />
+
+      {/* Quick Command Palette Modal (Cmd+K / Ctrl+K) */}
+      <QuickPaletteModal
+        isOpen={isQuickPaletteOpen}
+        onClose={() => setIsQuickPaletteOpen(false)}
+        scenarios={ALL_SCENARIOS}
+        onSelectScenario={handleSelectScenario}
+        onStartDemo={handleStartDemo}
+        onRestartDemo={handleRestartDemo}
+        onNextDemoStep={handleNextDemoStep}
+        isDemoActive={isDemoActive}
+        onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
+        isDrawerOpen={isDrawerOpen}
+        onOpenPreviewAction={() => {
+          const lastWithAction = [...messages].reverse().find((m) => m.recommendedAction && !m.executed);
+          if (lastWithAction?.recommendedAction) {
+            setPreviewAction(lastWithAction.recommendedAction);
+          }
+        }}
+        hasPendingAction={messages.some((m) => m.recommendedAction && !m.executed)}
+        onRollbackLastAction={handleRollbackLastAction}
+        hasAuditHistory={auditHistory.length > 0}
+        isLiveMode={isLiveMode}
+        onToggleLiveMode={handleToggleLiveMode}
+        onRefreshLive={handleFetchLiveStatus}
+        onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
+        onOpenImageStudio={() => setIsImageStudioOpen(true)}
+        onOpenPitchDeck={() => setIsPitchDeckOpen(true)}
+        isAudioMuted={isAudioMutedState}
+        onToggleAudio={handleToggleAudio}
+        onPetByte={handlePetByte}
       />
     </div>
   );
