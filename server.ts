@@ -6,7 +6,7 @@ import { execFile } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
-import { fetchLiveRepositoryState } from './src/services/githubClient';
+import { fetchLiveRepositoryState, GitHubRateLimitError } from './src/services/githubClient';
 import { LIVE_REPO, LIVE_REPO_BRANCHES } from './src/data/liveRepoConfig';
 
 dotenv.config();
@@ -487,6 +487,14 @@ app.get('/api/repo/live', async (req, res) => {
     });
   } catch (err: any) {
     console.error('Error in /api/repo/live:', err);
+    if (err instanceof GitHubRateLimitError) {
+      return res.status(429).json({
+        error: 'GitHub API rate limit exceeded',
+        message: err.message,
+        rateLimited: true,
+        resetAt: err.resetAt.toISOString(),
+      });
+    }
     res.status(502).json({ error: 'Failed to fetch live repository state from GitHub', message: err?.message });
   }
 });

@@ -25,6 +25,7 @@ import {
   CONFLICT_SCENARIO,
   UNSAFE_LOSS_RISK_SCENARIO,
 } from './data/mockScenarios';
+import { LIVE_REPO } from './data/liveRepoConfig';
 import {
   RepositoryState,
   ChatMessage,
@@ -50,6 +51,10 @@ export default function App() {
   const [isLiveMode, setIsLiveMode] = useState<boolean>(false);
   const [liveScanState, setLiveScanState] = useState<LiveScanState>({ loading: false });
   const [cachedSandboxState, setCachedSandboxState] = useState<RepositoryState>(MVP_SCENARIO.state);
+
+  // Live Repo (public GitHub fixture) branch picker state
+  const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
+  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
 
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
@@ -550,6 +555,7 @@ export default function App() {
   const handleToggleLiveMode = () => {
     if (!isLiveMode) {
       setCachedSandboxState(repoState);
+      setActiveLiveBranch(null);
       setIsLiveMode(true);
       handleFetchLiveStatus(true);
     } else {
@@ -574,6 +580,7 @@ export default function App() {
     if (isLiveMode) {
       setIsLiveMode(false);
     }
+    setActiveLiveBranch(null);
     setActiveScenarioId(scenario.id);
     setRepoState(scenario.state);
 
@@ -601,6 +608,68 @@ export default function App() {
     setTimeout(() => {
       handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier);
     }, 300);
+  };
+
+  // Load real repository state from the public GitHub test fixture
+  // (farisnour/gitpet-acme-corp-ecommerce-store) instead of a mock scenario.
+  const handleLoadLiveRepo = async (branch: string) => {
+    if (isLiveMode) {
+      setIsLiveMode(false);
+    }
+    setIsLiveLoading(true);
+    try {
+      const res = await fetch(`/api/repo/live?branch=${encodeURIComponent(branch)}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.message || data.error || 'Failed to load live repository state');
+      }
+
+      setActiveLiveBranch(branch);
+      setActiveScenarioId(`live:${branch}`);
+      setRepoState(data.state);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `live_switch_${Date.now()}`,
+          sender: 'assistant',
+          role: selectedRole,
+          modelUsed: 'github_live',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `🔗 Loaded **live** data from [${data.repo}](${data.repoUrl}) — branch \`${branch}\`.\n\n${data.state.symptomDescription}`,
+          evidenceSummary: {
+            symptom: data.state.symptomTitle,
+            healthLevel: data.state.healthLevel,
+            evidencePoints: [
+              data.state.symptomDescription,
+              `Ahead: ${data.state.currentBranch.aheadCount} | Behind: ${data.state.currentBranch.behindCount} (vs ${LIVE_REPO.defaultBranch})`,
+              `Health Score: ${data.state.healthPercentage}%`,
+            ],
+          },
+        },
+      ]);
+
+      setTimeout(() => {
+        handleSendMessage(`Status report for the live ${branch} branch! What needs attention?`, selectedRole, selectedTier);
+      }, 300);
+    } catch (err: any) {
+      console.warn('Failed to load live repo state:', err);
+      const rateLimited = err?.message?.includes('rate limit');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `live_err_${Date.now()}`,
+          sender: 'system',
+          timestamp: 'Just now',
+          text: rateLimited
+            ? `⚠️ ${err.message}`
+            : `⚠️ Could not reach GitHub for live repo data (network issue). Try again shortly.`,
+        },
+      ]);
+    } finally {
+      setIsLiveLoading(false);
+    }
   };
 
   // Sandbox Anomaly Injectors
@@ -914,6 +983,9 @@ export default function App() {
           onToggleLiveMode={handleToggleLiveMode}
           onRefreshLive={handleFetchLiveStatus}
           liveScanState={liveScanState}
+          activeLiveBranch={activeLiveBranch}
+          isLiveLoading={isLiveLoading}
+          onSelectLiveBranch={handleLoadLiveRepo}
         />
 
         {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}
