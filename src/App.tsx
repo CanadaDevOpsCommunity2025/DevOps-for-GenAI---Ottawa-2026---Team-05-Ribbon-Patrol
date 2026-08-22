@@ -28,6 +28,7 @@ import {
   ChatRole,
   ModelTier,
   ChatHistoryEntry,
+  LiveScanState,
 } from './types';
 
 export default function App() {
@@ -41,6 +42,11 @@ export default function App() {
   const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<ChatRole>('byte_mascot');
   const [selectedTier, setSelectedTier] = useState<ModelTier>('general');
+
+  // Live Workspace Scanner State
+  const [isLiveMode, setIsLiveMode] = useState<boolean>(false);
+  const [liveScanState, setLiveScanState] = useState<LiveScanState>({ loading: false });
+  const [cachedSandboxState, setCachedSandboxState] = useState<RepositoryState>(MVP_SCENARIO.state);
 
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
@@ -112,7 +118,7 @@ export default function App() {
     },
   ]);
 
-  // Handler for sending messages to Gemini API backend (/api/chat and /api/gitpet/analyze)
+  // Handler for sending messages to Gemini API backend (/api/ai/chat)
   const handleSendMessage = async (
     userPrompt: string,
     roleOverride?: ChatRole,
@@ -140,8 +146,7 @@ export default function App() {
       }));
 
     try {
-      // First try rich multi-turn chat endpoint
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,10 +161,8 @@ export default function App() {
       const data = await res.json();
 
       if (data.success && data.reply) {
-        // Also check if we should pair with a recommended action from state if repo needs attention
         let recAction: RecommendedAction | undefined = undefined;
         if (repoState.healthLevel !== 'Healthy' && !data.reply.includes('```')) {
-          // Provide contextual safe action for this scenario
           recAction = messages[0]?.recommendedAction;
         }
 
@@ -183,7 +186,6 @@ export default function App() {
         };
         setMessages((prev) => [...prev, assistantMsg]);
       } else {
-        // Fallback to gitpet analyze
         const analyzeRes = await fetch('/api/gitpet/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -213,15 +215,14 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.warn('API call error, creating fallback response:', err);
-      // Clean fallback message
+      console.warn('API call error, using clean fallback response:', err);
       const fallbackMsg: ChatMessage = {
         id: `msg_asst_${Date.now()}`,
         sender: 'assistant',
         role: activeRole,
         modelUsed: 'gemini-3.1-flash-lite',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Based on current repository signals, your branch **${repoState.currentBranch.name}** has ${repoState.currentBranch.behindCount} commits behind upstream with ${repoState.workingTree.length} uncommitted files.\n\nRecommended: Run \`git stash push -m "gitpet: save"\` before pulling.`,
+        text: `Based on current repository signals, branch **${repoState.currentBranch.name}** has ${repoState.currentBranch.behindCount} commits behind upstream with ${repoState.workingTree.length} uncommitted files.\n\nRecommended: Run \`git stash push -m "gitpet: save"\` before pulling.`,
         evidenceSummary: {
           symptom: repoState.symptomTitle,
           healthLevel: repoState.healthLevel,
@@ -242,11 +243,9 @@ export default function App() {
   const handleExecuteAction = (action: RecommendedAction) => {
     setExecutingActionId(action.id);
 
-    // Multi-step progress simulation
     setTimeout(() => {
       const previousHealth = repoState.healthPercentage;
 
-      // Update repository state to clean / synchronized state
       let updatedWorkingTree = [...repoState.workingTree];
       let updatedBehind = repoState.currentBranch.behindCount;
       let updatedAhead = repoState.currentBranch.aheadCount;
@@ -349,7 +348,7 @@ export default function App() {
                 executed: true,
                 executionResult: {
                   success: true,
-                  message: 'Action completed successfully! Repository state rechecked and clean.',
+                  message: 'Action completed successfully! Repository state verified and clean.',
                   previousHealth,
                   newHealth: finalState.healthPercentage,
                 },
@@ -366,7 +365,6 @@ export default function App() {
     const last = auditHistory[0];
     setAuditHistory((prev) => prev.slice(1));
 
-    // Restore to attention state
     setRepoState(MVP_SCENARIO.state);
 
     setMessages((prev) => [
@@ -380,8 +378,119 @@ export default function App() {
     ]);
   };
 
+  // Live Workspace Status Scanner
+  const handleFetchLiveStatus = async (isInitialSwitch = false) => {
+    setLiveScanState((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await fetch('/api/git/live-status');
+      const data = await res.json();
+      if (data.repositoryUnavailable) {
+        setLiveScanState({
+          loading: false,
+          unavailable: true,
+          error: 'Current workspace is not a Git repository.',
+          lastRefreshed: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `msg_live_unavail_${Date.now()}`,
+            sender: 'assistant',
+            role: selectedRole,
+            modelUsed: 'gemini-3.5-flash',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
+          },
+        ]);
+      } else if (data.success && data.state) {
+        setRepoState(data.state);
+        setLiveScanState({
+          loading: false,
+          unavailable: false,
+          error: null,
+          lastRefreshed: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+
+        if (isInitialSwitch) {
+          const liveState = data.state as RepositoryState;
+          const branch = liveState.currentBranch;
+          const dirtyCount = liveState.workingTree.length;
+          let summaryText = `🟢 **Live Workspace Connected**: Active branch is **${branch.name}**`;
+          if (branch.upstream) {
+            summaryText += ` tracking **${branch.upstream}** (${branch.aheadCount} ahead / ${branch.behindCount} behind).`;
+          } else {
+            summaryText += ` (no upstream configured).`;
+          }
+          if (dirtyCount > 0) {
+            summaryText += `\n\nFound **${dirtyCount} uncommitted file(s)** in working tree.`;
+          } else {
+            summaryText += `\n\nWorking tree is completely clean!`;
+          }
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `live_switch_${Date.now()}`,
+              sender: 'assistant',
+              role: selectedRole,
+              modelUsed: 'gemini-3.5-flash',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: summaryText,
+              evidenceSummary: {
+                symptom: liveState.symptomTitle,
+                healthLevel: liveState.healthLevel,
+                evidencePoints: [
+                  `Branch: ${branch.name}`,
+                  branch.upstream ? `Tracking: ${branch.upstream} (↑${branch.aheadCount} / ↓${branch.behindCount})` : 'Upstream: None configured',
+                  `Uncommitted files: ${dirtyCount}`,
+                ],
+              },
+            },
+          ]);
+        }
+      } else {
+        setLiveScanState((prev) => ({
+          ...prev,
+          loading: false,
+          error: data.error || 'Failed to scan live workspace',
+        }));
+      }
+    } catch (err: any) {
+      setLiveScanState((prev) => ({
+        ...prev,
+        loading: false,
+        error: err?.message || 'Network error scanning live workspace',
+      }));
+    }
+  };
+
+  const handleToggleLiveMode = () => {
+    if (!isLiveMode) {
+      setCachedSandboxState(repoState);
+      setIsLiveMode(true);
+      handleFetchLiveStatus(true);
+    } else {
+      setIsLiveMode(false);
+      setRepoState(cachedSandboxState);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sandbox_switch_${Date.now()}`,
+          sender: 'assistant',
+          role: selectedRole,
+          modelUsed: 'gemini-3.5-flash',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `📦 **Switched back to Sandbox Mode**.\n\nRestored previous scenario preset. You can continue simulating anomalies and test safe actions risk-free.`,
+        },
+      ]);
+    }
+  };
+
   // Scenario selection
   const handleSelectScenario = (scenario: ScenarioPreset) => {
+    if (isLiveMode) {
+      setIsLiveMode(false);
+    }
     setActiveScenarioId(scenario.id);
     setRepoState(scenario.state);
 
@@ -406,7 +515,6 @@ export default function App() {
       },
     ]);
 
-    // Automatically trigger analysis for the scenario's sample prompt
     setTimeout(() => {
       handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier);
     }, 300);
@@ -479,7 +587,6 @@ export default function App() {
   const handleRunDemoStep = (stepNumber: number) => {
     setDemoStep(stepNumber);
     if (stepNumber === 1) {
-      // Step 1: Clean State
       setRepoState(CLEAN_HEALTHY_SCENARIO.state);
       setActiveScenarioId(CLEAN_HEALTHY_SCENARIO.id);
       setMessages([
@@ -492,7 +599,6 @@ export default function App() {
         },
       ]);
     } else if (stepNumber === 2) {
-      // Step 2: Trigger Divergence Anomaly (3 Remote Commits + 2 Dirty Files)
       setRepoState(MVP_SCENARIO.state);
       setActiveScenarioId(MVP_SCENARIO.id);
       setMessages((prev) => [
@@ -505,10 +611,8 @@ export default function App() {
         },
       ]);
     } else if (stepNumber === 3) {
-      // Step 3: Ask Guidance
       handleSendMessage('Status report! What needs attention?', selectedRole, selectedTier);
     } else if (stepNumber === 4) {
-      // Step 4: Execute Safe Action
       const lastMsgWithAction = [...messages].reverse().find((m) => m.recommendedAction && !m.executed);
       if (lastMsgWithAction?.recommendedAction) {
         handleExecuteAction(lastMsgWithAction.recommendedAction);
@@ -521,7 +625,7 @@ export default function App() {
   return (
     <div
       id="gitpet-app-root"
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased selection:bg-blue-100 selection:text-blue-900"
+      className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased selection:bg-slate-200 selection:text-slate-900"
     >
       {/* Top Bar */}
       <TopBar
@@ -538,10 +642,13 @@ export default function App() {
         onOpenImageStudio={() => setIsImageStudioOpen(true)}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         isDrawerOpen={isDrawerOpen}
+        isLiveMode={isLiveMode}
+        liveScanState={liveScanState}
+        onRefreshLive={handleFetchLiveStatus}
       />
 
       {/* Main Layout Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-5 space-y-4">
         {/* Scenario Switcher & Anomaly Sandbox Bar */}
         <ScenarioSwitcher
           scenarios={ALL_SCENARIOS}
@@ -552,34 +659,38 @@ export default function App() {
           onInjectConflict={handleInjectConflict}
           onInjectUnsafeRisk={handleInjectUnsafeRisk}
           onResetToClean={handleResetToClean}
+          isLiveMode={isLiveMode}
+          onToggleLiveMode={handleToggleLiveMode}
+          onRefreshLive={handleFetchLiveStatus}
+          liveScanState={liveScanState}
         />
 
-        {/* Core Layout Grid: Pet Stage (Center/Left) + Chat Stream (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
+        {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
           {/* Left Column: Pet Ambient Canvas & Posture Visualization */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="lg:col-span-5 space-y-3">
             <PetStage
               state={repoState}
               customAvatarUrl={customAvatarUrl}
               onOpenImageStudio={() => setIsImageStudioOpen(true)}
               onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-              onPetClick={() => {
-                // Interactive petting
-              }}
+              onPetClick={() => {}}
             />
 
             {/* Quick Practice Metrics Card */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🔥</span>
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 font-bold">
+                  🔥
+                </div>
                 <div>
-                  <span className="font-bold text-slate-800">Clean Commit Streak</span>
-                  <p className="text-[11px] text-slate-500">
+                  <span className="font-bold text-slate-800">Clean Review Streak</span>
+                  <p className="text-[11px] text-slate-400">
                     {practiceStats.cleanCommitStreak} verified reviews in a row
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/80">
                 Active & Protected
               </span>
             </div>

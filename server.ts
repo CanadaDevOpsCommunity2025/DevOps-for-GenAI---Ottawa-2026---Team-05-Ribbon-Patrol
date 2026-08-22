@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import dotenv from 'dotenv';
+import { execFile } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -362,18 +363,543 @@ function generateRuleBasedAction(state: any, userPrompt?: string) {
   };
 }
 
+// In-memory Asset Preview & Approval Registry
+interface RegisteredAsset {
+  id: string;
+  prompt: string;
+  imageUrl: string;
+  aspectRatio: string;
+  mode: 'create' | 'edit';
+  sourceAssetId?: string;
+  targetHealthState?: string;
+  status: 'preview' | 'approved';
+  createdAt: string;
+  expiresAt: number;
+  approvedAt?: string;
+  requestId: string;
+}
+
+const assetRegistry = new Map<string, RegisteredAsset>();
+let currentApprovedAssetId: string | null = null;
+const approvedAssetHistory: string[] = [];
+
+// Seed default mascot in asset registry
+const DEFAULT_ASSET_ID = 'asset_default_byte';
+assetRegistry.set(DEFAULT_ASSET_ID, {
+  id: DEFAULT_ASSET_ID,
+  prompt: 'Original Byte Companion Mascot',
+  imageUrl: generateFallbackAvatar('Cyber-Byte developer mascot'),
+  aspectRatio: '1:1',
+  mode: 'create',
+  status: 'approved',
+  createdAt: new Date().toISOString(),
+  approvedAt: new Date().toISOString(),
+  expiresAt: Number.MAX_SAFE_INTEGER,
+  requestId: 'req_init_default',
+});
+currentApprovedAssetId = DEFAULT_ASSET_ID;
+
+// Request ID & safe logging helper
+function generateRequestId(prefix = 'req'): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+}
+
+function logRequestAudit(endpoint: string, reqId: string, statusCode: number, durationMs: number, extra?: string) {
+  // Redacts tokens, audio, file system paths, and raw image data
+  console.log(`[API ${statusCode}] ${endpoint} | reqId: ${reqId} | latency: ${durationMs}ms${extra ? ` | ${extra}` : ''}`);
+}
+
 // API: Health check
 app.get('/api/health', (req, res) => {
+  const reqId = generateRequestId('health');
   res.json({
+    requestId: reqId,
     status: 'ok',
     service: 'GitPet Engine',
     geminiAvailable: !!process.env.GEMINI_API_KEY,
     timestamp: new Date().toISOString(),
+    assetStats: {
+      registeredCount: assetRegistry.size,
+      currentApprovedId: currentApprovedAssetId,
+    },
   });
 });
 
-// API: Multi-turn Chat API with role-based system instructions and model routing
-app.post('/api/chat', async (req, res) => {
+// Helper: Safely execute a read-only git command using argument-based execFile
+function runGitCommand(
+  args: string[],
+  cwd: string = process.cwd(),
+  timeoutMs: number = 3500
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      args,
+      {
+        cwd,
+        timeout: timeoutMs,
+        maxBuffer: 1024 * 1024,
+        env: {
+          ...process.env,
+          LC_ALL: 'C',
+          GIT_TERMINAL_PROMPT: '0',
+        },
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          resolve({
+            stdout: stdout ? stdout.toString() : '',
+            stderr: stderr ? stderr.toString() : error.message || '',
+            exitCode: typeof (error as any).code === 'number' ? (error as any).code : 1,
+          });
+        } else {
+          resolve({
+            stdout: stdout ? stdout.toString() : '',
+            stderr: stderr ? stderr.toString() : '',
+            exitCode: 0,
+          });
+        }
+      }
+    );
+  });
+}
+
+// Live Git Workspace Scanner
+async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
+  // 1. Verify that the workspace root is a valid Git work tree
+  const checkWorkTree = await runGitCommand(['rev-parse', '--is-inside-work-tree'], workspaceRoot);
+  if (checkWorkTree.exitCode !== 0 || checkWorkTree.stdout.trim() !== 'true') {
+    return {
+      repositoryUnavailable: true,
+      upstreamUnavailable: true,
+      state: null,
+      message: 'Workspace is not inside an active Git repository.',
+    };
+  }
+
+  // 2. Obtain repository root and repository name
+  const topLevelRes = await runGitCommand(['rev-parse', '--show-toplevel'], workspaceRoot);
+  const repoRoot = topLevelRes.exitCode === 0 && topLevelRes.stdout.trim() ? topLevelRes.stdout.trim() : workspaceRoot;
+  const repoName = path.basename(repoRoot) || 'workspace-repo';
+
+  // 3. Obtain current branch or detached HEAD identity
+  let branchName = 'main';
+  let isDetached = false;
+  let lastCommitHash = 'HEAD';
+
+  const branchRes = await runGitCommand(['symbolic-ref', '--short', '-q', 'HEAD'], workspaceRoot);
+  if (branchRes.exitCode === 0 && branchRes.stdout.trim()) {
+    branchName = branchRes.stdout.trim();
+    isDetached = false;
+  } else {
+    // Detached HEAD or unborn branch
+    const detachedRes = await runGitCommand(['rev-parse', '--short', 'HEAD'], workspaceRoot);
+    if (detachedRes.exitCode === 0 && detachedRes.stdout.trim()) {
+      const shortHash = detachedRes.stdout.trim();
+      branchName = `HEAD detached at ${shortHash}`;
+      lastCommitHash = shortHash;
+      isDetached = true;
+    } else {
+      branchName = 'main (unborn)';
+      isDetached = false;
+    }
+  }
+
+  // 4. Upstream tracking branch & ahead/behind divergence
+  let upstream: string | null = null;
+  let upstreamUnavailable = false;
+  let aheadCount = 0;
+  let behindCount = 0;
+
+  if (!isDetached) {
+    const upstreamRes = await runGitCommand(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], workspaceRoot);
+    if (upstreamRes.exitCode === 0 && upstreamRes.stdout.trim()) {
+      upstream = upstreamRes.stdout.trim();
+      upstreamUnavailable = false;
+
+      // Count ahead / behind
+      const countRes = await runGitCommand(['rev-list', '--left-right', '--count', 'HEAD...@{u}'], workspaceRoot);
+      if (countRes.exitCode === 0 && countRes.stdout.trim()) {
+        const parts = countRes.stdout.trim().split(/\s+/);
+        if (parts.length >= 2) {
+          aheadCount = parseInt(parts[0], 10) || 0;
+          behindCount = parseInt(parts[1], 10) || 0;
+        }
+      }
+    } else {
+      upstream = null;
+      upstreamUnavailable = true;
+    }
+  } else {
+    upstream = null;
+    upstreamUnavailable = true;
+  }
+
+  // 5. Working tree dirty files (porcelain -uall)
+  const statusRes = await runGitCommand(['status', '--porcelain=v1', '-uall'], workspaceRoot);
+  const rawStatusLines = statusRes.stdout
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length >= 3);
+
+  const totalDirtyFiles = rawStatusLines.length;
+  const cappedLines = rawStatusLines.slice(0, 25);
+  const workingTreeFiles: Array<{
+    path: string;
+    status: 'modified' | 'staged' | 'untracked' | 'conflicted';
+    additions: number;
+    deletions: number;
+    diffSnippet: string;
+  }> = [];
+
+  for (const line of cappedLines) {
+    const code = line.substring(0, 2);
+    let filePath = line.substring(3).trim();
+    if (filePath.startsWith('"') && filePath.endsWith('"')) {
+      filePath = filePath.slice(1, -1);
+    }
+    // Handle renames (e.g. orig -> new)
+    if (filePath.includes(' -> ')) {
+      filePath = filePath.split(' -> ').pop() || filePath;
+    }
+
+    let fileStatus: 'modified' | 'staged' | 'untracked' | 'conflicted' = 'modified';
+    if (code === '??') {
+      fileStatus = 'untracked';
+    } else if (
+      code === 'UU' ||
+      code === 'AA' ||
+      code === 'DD' ||
+      code === 'UD' ||
+      code === 'DU' ||
+      code === 'AU' ||
+      code === 'UA' ||
+      code.includes('U')
+    ) {
+      fileStatus = 'conflicted';
+    } else if (code[0] !== ' ' && code[0] !== '?' && code[1] === ' ') {
+      fileStatus = 'staged';
+    } else {
+      fileStatus = 'modified';
+    }
+
+    let additions = 0;
+    let deletions = 0;
+    let diffSnippet = '';
+
+    if (fileStatus === 'untracked') {
+      additions = 1;
+      deletions = 0;
+      diffSnippet = `+// Untracked file: ${filePath}`;
+    } else {
+      // Collect bounded diff snippet
+      const diffCmd = fileStatus === 'staged' ? ['diff', '--cached', '-U1', '--no-color', '--', filePath] : ['diff', '-U1', '--no-color', '--', filePath];
+      const diffOut = await runGitCommand(diffCmd, workspaceRoot, 1500);
+      if (diffOut.stdout) {
+        const diffLines = diffOut.stdout.split('\n');
+        for (const dl of diffLines) {
+          if (dl.startsWith('+') && !dl.startsWith('+++')) additions++;
+          if (dl.startsWith('-') && !dl.startsWith('---')) deletions++;
+        }
+        diffSnippet = diffLines.slice(0, 10).join('\n');
+        if (diffLines.length > 10) diffSnippet += `\n... (+${diffLines.length - 10} more lines)`;
+      } else {
+        diffSnippet = `// ${fileStatus}: ${filePath}`;
+        additions = 1;
+      }
+    }
+
+    workingTreeFiles.push({
+      path: filePath,
+      status: fileStatus,
+      additions,
+      deletions,
+      diffSnippet: diffSnippet || `// ${fileStatus}: ${filePath}`,
+    });
+  }
+
+  // 6. Recent commit history
+  const historyRes = await runGitCommand(
+    ['log', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+    workspaceRoot
+  );
+  const commitHistory: Array<{
+    hash: string;
+    shortHash: string;
+    message: string;
+    author: string;
+    timestamp: string;
+  }> = [];
+
+  let lastCommitMessage = 'Initial commit';
+  let lastActivity = 'Recently';
+
+  if (historyRes.exitCode === 0 && historyRes.stdout.trim()) {
+    const lines = historyRes.stdout.trim().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split('|');
+      if (parts.length >= 5) {
+        const c = {
+          hash: parts[0],
+          shortHash: parts[1],
+          message: parts[2],
+          author: parts[3],
+          timestamp: parts[4],
+        };
+        commitHistory.push(c);
+        if (i === 0) {
+          lastCommitHash = c.shortHash;
+          lastCommitMessage = c.message;
+          lastActivity = c.timestamp;
+        }
+      }
+    }
+  }
+
+  // 7. Local commits ahead & remote commits behind
+  const localCommitsAhead: Array<{
+    hash: string;
+    shortHash: string;
+    message: string;
+    author: string;
+    timestamp: string;
+    isLocal: boolean;
+  }> = [];
+
+  const remoteCommitsBehind: Array<{
+    hash: string;
+    shortHash: string;
+    message: string;
+    author: string;
+    timestamp: string;
+    isRemote: boolean;
+  }> = [];
+
+  if (upstream && aheadCount > 0) {
+    const aheadRes = await runGitCommand(
+      ['log', '@{u}..HEAD', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+      workspaceRoot
+    );
+    if (aheadRes.exitCode === 0 && aheadRes.stdout.trim()) {
+      const lines = aheadRes.stdout.trim().split('\n');
+      for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length >= 5) {
+          localCommitsAhead.push({
+            hash: parts[0],
+            shortHash: parts[1],
+            message: parts[2],
+            author: parts[3],
+            timestamp: parts[4],
+            isLocal: true,
+          });
+        }
+      }
+    }
+  }
+
+  if (upstream && behindCount > 0) {
+    const behindRes = await runGitCommand(
+      ['log', 'HEAD..@{u}', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+      workspaceRoot
+    );
+    if (behindRes.exitCode === 0 && behindRes.stdout.trim()) {
+      const lines = behindRes.stdout.trim().split('\n');
+      for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length >= 5) {
+          remoteCommitsBehind.push({
+            hash: parts[0],
+            shortHash: parts[1],
+            message: parts[2],
+            author: parts[3],
+            timestamp: parts[4],
+            isRemote: true,
+          });
+        }
+      }
+    }
+  }
+
+  // 8. Stashes
+  const stashRes = await runGitCommand(['stash', 'list', '--pretty=format:%gd|%cr|%gs'], workspaceRoot);
+  const stashes: Array<{
+    id: string;
+    index: number;
+    message: string;
+    timestamp: string;
+    fileCount: number;
+    files: string[];
+  }> = [];
+
+  if (stashRes.exitCode === 0 && stashRes.stdout.trim()) {
+    const lines = stashRes.stdout.trim().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const parts = lines[i].split('|');
+      if (parts.length >= 3) {
+        stashes.push({
+          id: `stash_${i}`,
+          index: i,
+          message: parts[2],
+          timestamp: parts[1],
+          fileCount: 1,
+          files: ['stashed changes'],
+        });
+      }
+    }
+  }
+
+  // 9. All local branches
+  const branchesRes = await runGitCommand(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], workspaceRoot);
+  const allBranches =
+    branchesRes.exitCode === 0 && branchesRes.stdout.trim()
+      ? branchesRes.stdout.trim().split('\n').filter(Boolean)
+      : [branchName];
+
+  // 10. Dynamic health computation for live state
+  const hasConflict = workingTreeFiles.some((f) => f.status === 'conflicted');
+
+  let healthPercentage = 100;
+  let healthLevel: 'Healthy' | 'Attention' | 'Blocked' | 'Unsafe' = 'Healthy';
+  let primarySymptom: any = 'clean_sync';
+  let symptomTitle = 'Synchronized & Pristine';
+  let symptomDescription = `Working directory clean, 0 commits ahead/behind ${upstream || 'upstream'}.`;
+  let operatorMeaning = 'Repository in optimal state. Ready for development or release.';
+
+  if (hasConflict) {
+    healthPercentage = 35;
+    healthLevel = 'Blocked';
+    primarySymptom = 'merge_conflict';
+    symptomTitle = 'Merge Conflict Detected';
+    symptomDescription = `${workingTreeFiles.filter((f) => f.status === 'conflicted').length} conflicted files in working tree.`;
+    operatorMeaning = 'Resolve conflict markers or abort merge/rebase before continuing.';
+  } else if (isDetached) {
+    healthPercentage = 50;
+    healthLevel = 'Attention';
+    primarySymptom = 'detached_head';
+    symptomTitle = 'Detached HEAD State';
+    symptomDescription = `HEAD is detached at ${lastCommitHash}. Floating commits risk garbage collection.`;
+    operatorMeaning = 'Create or checkout a named branch to anchor your work permanently.';
+  } else if (behindCount > 0 && workingTreeFiles.length > 0) {
+    healthPercentage = Math.max(55, 90 - behindCount * 6 - workingTreeFiles.length * 5);
+    healthLevel = 'Attention';
+    primarySymptom = 'behind_remote';
+    symptomTitle = 'Behind Remote with Local Edits';
+    symptomDescription = `${branchName} is ${behindCount} commits behind ${upstream} with ${workingTreeFiles.length} dirty file(s).`;
+    operatorMeaning = 'Stash or preserve local edits before pulling upstream changes to prevent merge contamination.';
+  } else if (behindCount > 0) {
+    healthPercentage = Math.max(75, 95 - behindCount * 5);
+    healthLevel = 'Attention';
+    primarySymptom = 'behind_remote';
+    symptomTitle = `${behindCount} Commits Behind Remote`;
+    symptomDescription = `Branch has ${behindCount} incoming commits on ${upstream}.`;
+    operatorMeaning = 'Fast-forward pull from upstream to stay synchronized.';
+  } else if (aheadCount > 0) {
+    healthPercentage = 85;
+    healthLevel = 'Attention';
+    primarySymptom = 'unpushed_work';
+    symptomTitle = `${aheadCount} Unpushed Local Commits`;
+    symptomDescription = `You have ${aheadCount} local commit(s) ahead of ${upstream}.`;
+    operatorMeaning = 'Push commits to origin when ready for backup or team review.';
+  } else if (workingTreeFiles.length > 0) {
+    healthPercentage = 92;
+    healthLevel = 'Healthy';
+    primarySymptom = 'unpushed_work';
+    symptomTitle = 'Active Working Directory';
+    symptomDescription = `${workingTreeFiles.length} file(s) modified or untracked locally.`;
+    operatorMeaning = 'Review diff and commit changes when logical unit is complete.';
+  }
+
+  const liveState = {
+    repoName,
+    currentBranch: {
+      name: branchName,
+      upstream,
+      aheadCount,
+      behindCount,
+      isDetached,
+      isStale: false,
+      lastCommitMessage,
+      lastCommitHash,
+      lastActivity,
+    },
+    allBranches,
+    workingTree: workingTreeFiles,
+    stashes,
+    localCommitsAhead,
+    remoteCommitsBehind,
+    commitHistory,
+    healthPercentage,
+    healthLevel,
+    primarySymptom,
+    symptomTitle,
+    symptomDescription,
+    operatorMeaning,
+    isLiveMode: true,
+    upstreamUnavailable,
+    repositoryUnavailable: false,
+    scannedAt: new Date().toISOString(),
+  };
+
+  return {
+    repositoryUnavailable: false,
+    upstreamUnavailable,
+    isDetached,
+    state: liveState,
+    rawSummary: {
+      branch: branchName,
+      upstream,
+      aheadCount,
+      behindCount,
+      dirtyFileCount: workingTreeFiles.length,
+      totalDirtyFiles,
+      isDetached,
+    },
+  };
+}
+
+// API: GET /api/git/live-status (Read-only live repository status scanner)
+app.get('/api/git/live-status', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = generateRequestId('git_live');
+
+  try {
+    const scanResult = await scanLiveWorkspace(process.cwd());
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 200, duration, `live scan (${scanResult.repositoryUnavailable ? 'unavailable' : scanResult.state?.currentBranch.name})`);
+
+    return res.json({
+      requestId,
+      success: !scanResult.repositoryUnavailable,
+      live: true,
+      timestamp: new Date().toISOString(),
+      repositoryUnavailable: scanResult.repositoryUnavailable,
+      upstreamUnavailable: scanResult.upstreamUnavailable,
+      isDetached: scanResult.isDetached,
+      message: scanResult.message || 'Live workspace scanned successfully',
+      state: scanResult.state,
+      rawSummary: scanResult.rawSummary,
+    });
+  } catch (err: any) {
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 500, duration, `error: ${String(err)}`);
+    return res.status(500).json({
+      requestId,
+      success: false,
+      live: true,
+      timestamp: new Date().toISOString(),
+      repositoryUnavailable: false,
+      error: 'Failed to scan live repository status',
+      code: 'SCAN_FAILED',
+    });
+  }
+});
+
+// Shared Chat Request Handler
+async function handleChatRequest(req: express.Request, res: express.Response) {
+  const startTime = Date.now();
+  const requestId = generateRequestId('chat');
+
   try {
     const {
       messages,
@@ -387,7 +913,7 @@ app.post('/api/chat', async (req, res) => {
       role = 'byte_mascot',
       tier = 'general',
       modelTier,
-    } = req.body;
+    } = req.body || {};
 
     // Helper to safely extract text from any message format
     const extractText = (msg: any): string => {
@@ -452,9 +978,12 @@ app.post('/api/chat', async (req, res) => {
     }
 
     if (!userPrompt && rawTurns.length === 0) {
+      logRequestAudit(req.path, requestId, 400, Date.now() - startTime, 'missing_message');
       return res.status(400).json({
+        requestId,
         success: false,
         error: 'Message or messages array is required',
+        code: 'INVALID_REQUEST',
       });
     }
 
@@ -481,7 +1010,7 @@ app.post('/api/chat', async (req, res) => {
     const ai = getGenAI();
     const systemInstruction = ROLE_SYSTEM_INSTRUCTIONS[role] || ROLE_SYSTEM_INSTRUCTIONS.byte_mascot;
 
-    // Structured state context to inject
+    // Structured state context to inject (sanitized)
     const repoContext = state
       ? `
 CURRENT REPOSITORY CONTEXT:
@@ -546,13 +1075,23 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
         const textOutput = response.text || '';
         const ruleBased = generateRuleBasedAction(state, userPrompt);
 
+        const recAction = ruleBased.recommendedAction;
+        const duration = Date.now() - startTime;
+        logRequestAudit(req.path, requestId, 200, duration, `model: ${modelName}`);
+
         return res.json({
+          requestId,
           success: true,
           modelUsed: modelName,
           role,
           reply: textOutput,
           explanation: textOutput,
-          recommendedAction: ruleBased.recommendedAction,
+          summary: recAction?.summary || textOutput.slice(0, 120),
+          confidence: recAction?.confidence || 'High',
+          expectedImpact: recAction?.expectedResult || '',
+          reversal: recAction?.reversalStep || '',
+          recommendedAction: recAction,
+          evidence: ruleBased.evidencePoints,
           evidencePoints: ruleBased.evidencePoints,
         });
       } catch (geminiError: any) {
@@ -568,32 +1107,49 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
     if (role === 'git_tutor') roleGreeting = '📚 **Git Tutor**: ';
 
     const fallbackReply = `${roleGreeting}${ruleBased.explanation}`;
+    const recAction = ruleBased.recommendedAction;
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 200, duration, `fallback: ${modelName}`);
 
     return res.json({
+      requestId,
       success: true,
       modelUsed: `${modelName} (fallback)`,
       role,
       reply: fallbackReply,
       explanation: fallbackReply,
-      recommendedAction: ruleBased.recommendedAction,
+      summary: recAction?.summary || fallbackReply.slice(0, 120),
+      confidence: recAction?.confidence || 'High',
+      expectedImpact: recAction?.expectedResult || '',
+      reversal: recAction?.reversalStep || '',
+      recommendedAction: recAction,
+      evidence: ruleBased.evidencePoints,
       evidencePoints: ruleBased.evidencePoints,
     });
   } catch (err) {
-    console.error('Error in /api/chat:', err);
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 500, duration, `error: ${String(err)}`);
     res.status(500).json({
+      requestId,
       success: false,
       error: 'Chat completion failed',
-      details: String(err),
+      code: 'INTERNAL_ERROR',
+      retryable: true,
     });
   }
-});
+}
+
+// Routes for Chat (Both spec-compliant alias and legacy route)
+app.post('/api/ai/chat', handleChatRequest);
+app.post('/api/chat', handleChatRequest);
 
 // API: Analyze repository state with Gemini AI
 app.post('/api/gitpet/analyze', async (req, res) => {
+  const requestId = generateRequestId('analyze');
   try {
     const { state, userMessage, role = 'byte_mascot', tier = 'general' } = req.body;
     if (!state) {
-      return res.status(400).json({ error: 'Missing repository state' });
+      return res.status(400).json({ requestId, error: 'Missing repository state', code: 'INVALID_REQUEST' });
     }
 
     const ai = getGenAI();
@@ -692,6 +1248,7 @@ Respond in valid JSON with:
             parsed.recommendedAction.affectedFiles = (state.workingTree || []).map((f: any) => f.path);
           }
           return res.json({
+            requestId,
             success: true,
             source: 'gemini',
             modelUsed: modelName,
@@ -706,6 +1263,7 @@ Respond in valid JSON with:
     // Deterministic fallback
     const ruleBased = generateRuleBasedAction(state, userMessage);
     return res.json({
+      requestId,
       success: true,
       source: 'deterministic_engine',
       modelUsed: 'deterministic',
@@ -713,7 +1271,7 @@ Respond in valid JSON with:
     });
   } catch (error) {
     console.error('Error in /api/gitpet/analyze:', error);
-    res.status(500).json({ error: 'Failed to analyze repository state' });
+    res.status(500).json({ requestId, error: 'Failed to analyze repository state' });
   }
 });
 
@@ -761,32 +1319,44 @@ function generateFallbackAvatar(prompt: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 }
 
-// API: Create Image with gemini-3.1-flash-image-preview (or gemini-3.1-flash-image)
-app.post('/api/images/generate', async (req, res) => {
-  try {
-    const { prompt, aspectRatio = '1:1', imageSize = '1K' } = req.body;
+// Shared Image Generation Handler
+async function handleImageGenerate(req: express.Request, res: express.Response) {
+  const startTime = Date.now();
+  const requestId = generateRequestId('img_gen');
 
-    if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ error: 'A text prompt is required to create an image' });
+  try {
+    const { prompt, visualRequest, aspectRatio = '1:1', ratio, imageSize = '1K', targetHealthState } = req.body || {};
+    const effectivePrompt = (prompt || visualRequest || '').trim();
+    const effectiveRatio = ratio || aspectRatio || '1:1';
+
+    if (!effectivePrompt || typeof effectivePrompt !== 'string') {
+      logRequestAudit(req.path, requestId, 400, Date.now() - startTime, 'missing_prompt');
+      return res.status(400).json({
+        requestId,
+        success: false,
+        error: 'A text prompt is required to create an image',
+        code: 'INVALID_PROMPT',
+      });
     }
 
     const ai = getGenAI();
+    let imageUrl = '';
+    let source = 'fallback_canvas';
 
     if (ai) {
       try {
-        // Use gemini-3.1-flash-image or gemini-3.1-flash-image-preview
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image',
           contents: {
             parts: [
               {
-                text: `${prompt}. High quality digital art style, crisp lighting, vibrant colors, detailed developer mascot asset.`,
+                text: `${effectivePrompt}. Original, friendly Git repository companion dog mascot; minimalist flat-modern style; crisp studio lighting, vibrant colors, no text or watermarks.`,
               },
             ],
           },
           config: {
             imageConfig: {
-              aspectRatio: aspectRatio as any,
+              aspectRatio: effectiveRatio as any,
               imageSize: imageSize as any,
             },
           },
@@ -798,51 +1368,108 @@ app.post('/api/images/generate', async (req, res) => {
           for (const part of parts) {
             if (part.inlineData && part.inlineData.data) {
               const mimeType = part.inlineData.mimeType || 'image/png';
-              const imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-              return res.json({
-                success: true,
-                imageUrl,
-                prompt,
-                aspectRatio,
-                source: 'gemini-3.1-flash-image',
-              });
+              imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+              source = 'gemini-3.1-flash-image';
+              break;
             }
           }
+          if (imageUrl) break;
         }
       } catch (geminiImgError: any) {
         console.warn('Gemini image generation error, falling back to aesthetic SVG generator:', geminiImgError?.message || geminiImgError);
       }
     }
 
-    // Fallback high-fidelity SVG generator
-    const fallbackUrl = generateFallbackAvatar(prompt);
+    if (!imageUrl) {
+      imageUrl = generateFallbackAvatar(effectivePrompt);
+      source = 'fallback_canvas';
+    }
+
+    // Register temporary preview asset in asset registry (30 minute TTL)
+    const assetId = `prev_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    const newAsset: RegisteredAsset = {
+      id: assetId,
+      prompt: effectivePrompt,
+      imageUrl,
+      aspectRatio: effectiveRatio,
+      mode: 'create',
+      targetHealthState,
+      status: 'preview',
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + 30 * 60 * 1000,
+      requestId,
+    };
+    assetRegistry.set(assetId, newAsset);
+
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 200, duration, `created preview: ${assetId} (${source})`);
+
     return res.json({
+      requestId,
       success: true,
-      imageUrl: fallbackUrl,
-      prompt,
-      aspectRatio,
-      source: 'fallback_canvas',
+      asset: {
+        id: newAsset.id,
+        prompt: newAsset.prompt,
+        imageUrl: newAsset.imageUrl,
+        aspectRatio: newAsset.aspectRatio,
+        targetHealthState: newAsset.targetHealthState,
+        status: 'preview',
+        createdAt: newAsset.createdAt,
+        expiresAt: new Date(newAsset.expiresAt).toISOString(),
+      },
+      imageUrl: newAsset.imageUrl,
+      prompt: newAsset.prompt,
+      aspectRatio: newAsset.aspectRatio,
+      source,
     });
   } catch (err) {
-    console.error('Error in /api/images/generate:', err);
-    res.status(500).json({ error: 'Image generation failed' });
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 500, duration, `error: ${String(err)}`);
+    res.status(500).json({
+      requestId,
+      success: false,
+      error: 'Image generation failed',
+      code: 'INTERNAL_ERROR',
+      retryable: true,
+    });
   }
-});
+}
 
-// API: Edit Image with gemini-3.1-flash-image-preview (or gemini-3.1-flash-image)
-app.post('/api/images/edit', async (req, res) => {
+// Shared Image Edit Handler
+async function handleImageEdit(req: express.Request, res: express.Response) {
+  const startTime = Date.now();
+  const requestId = generateRequestId('img_edit');
+
   try {
-    const { prompt, imageBase64, mimeType = 'image/png', aspectRatio = '1:1' } = req.body;
+    const { prompt, visualRequest, imageBase64, sourceAssetId, mimeType = 'image/png', aspectRatio = '1:1', ratio } = req.body || {};
+    const effectivePrompt = (prompt || visualRequest || '').trim();
+    const effectiveRatio = ratio || aspectRatio || '1:1';
 
-    if (!prompt || !imageBase64) {
-      return res.status(400).json({ error: 'Prompt and base64 image are required for image editing' });
+    let effectiveBase64 = imageBase64;
+    if (!effectiveBase64 && sourceAssetId) {
+      const sourceAsset = assetRegistry.get(sourceAssetId);
+      if (sourceAsset) {
+        effectiveBase64 = sourceAsset.imageUrl;
+      }
+    }
+
+    if (!effectivePrompt || !effectiveBase64) {
+      logRequestAudit(req.path, requestId, 400, Date.now() - startTime, 'missing_prompt_or_image');
+      return res.status(400).json({
+        requestId,
+        success: false,
+        error: 'Prompt and base64 image (or sourceAssetId) are required for image editing',
+        code: 'INVALID_REQUEST',
+      });
     }
 
     const ai = getGenAI();
-    // Strip data URI prefix if present
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+    const cleanBase64 = effectiveBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-    if (ai) {
+    let imageUrl = '';
+    let source = 'fallback_canvas';
+
+    if (ai && !effectiveBase64.startsWith('data:image/svg+xml')) {
       try {
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image',
@@ -855,13 +1482,13 @@ app.post('/api/images/edit', async (req, res) => {
                 },
               },
               {
-                text: `Edit instruction: ${prompt}. Retain the core character silhouette while applying the requested visual changes accurately.`,
+                text: `Edit instruction: ${effectivePrompt}. Retain the core character silhouette while applying the requested visual changes accurately. Minimalist flat modern developer mascot.`,
               },
             ],
           },
           config: {
             imageConfig: {
-              aspectRatio: aspectRatio as any,
+              aspectRatio: effectiveRatio as any,
             },
           },
         });
@@ -872,44 +1499,226 @@ app.post('/api/images/edit', async (req, res) => {
           for (const part of parts) {
             if (part.inlineData && part.inlineData.data) {
               const outMime = part.inlineData.mimeType || 'image/png';
-              const imageUrl = `data:${outMime};base64,${part.inlineData.data}`;
-              return res.json({
-                success: true,
-                imageUrl,
-                prompt,
-                aspectRatio,
-                source: 'gemini-3.1-flash-image',
-              });
+              imageUrl = `data:${outMime};base64,${part.inlineData.data}`;
+              source = 'gemini-3.1-flash-image';
+              break;
             }
           }
+          if (imageUrl) break;
         }
       } catch (geminiEditErr: any) {
         console.warn('Gemini image edit error, using modified visual fallback:', geminiEditErr?.message || geminiEditErr);
       }
     }
 
-    // Fallback edited visual
-    const fallbackUrl = generateFallbackAvatar(`Edited: ${prompt}`);
+    if (!imageUrl) {
+      imageUrl = generateFallbackAvatar(`Edited: ${effectivePrompt}`);
+      source = 'fallback_canvas';
+    }
+
+    // Register temporary edited preview asset in asset registry (30 minute TTL)
+    const assetId = `prev_edit_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    const newAsset: RegisteredAsset = {
+      id: assetId,
+      prompt: effectivePrompt,
+      imageUrl,
+      aspectRatio: effectiveRatio,
+      mode: 'edit',
+      sourceAssetId,
+      status: 'preview',
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + 30 * 60 * 1000,
+      requestId,
+    };
+    assetRegistry.set(assetId, newAsset);
+
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 200, duration, `created edit preview: ${assetId} (${source})`);
+
     return res.json({
+      requestId,
       success: true,
-      imageUrl: fallbackUrl,
-      prompt,
-      aspectRatio,
-      source: 'fallback_canvas',
+      asset: {
+        id: newAsset.id,
+        prompt: newAsset.prompt,
+        imageUrl: newAsset.imageUrl,
+        aspectRatio: newAsset.aspectRatio,
+        sourceAssetId: newAsset.sourceAssetId,
+        status: 'preview',
+        createdAt: newAsset.createdAt,
+        expiresAt: new Date(newAsset.expiresAt).toISOString(),
+      },
+      imageUrl: newAsset.imageUrl,
+      prompt: newAsset.prompt,
+      aspectRatio: newAsset.aspectRatio,
+      source,
     });
   } catch (err) {
-    console.error('Error in /api/images/edit:', err);
-    res.status(500).json({ error: 'Image editing failed' });
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 500, duration, `error: ${String(err)}`);
+    res.status(500).json({
+      requestId,
+      success: false,
+      error: 'Image editing failed',
+      code: 'INTERNAL_ERROR',
+      retryable: true,
+    });
   }
+}
+
+// Shared Asset Approval Handler
+async function handleImageApprove(req: express.Request, res: express.Response) {
+  const startTime = Date.now();
+  const requestId = generateRequestId('img_appr');
+
+  try {
+    const assetId = (req.params.id || req.body?.id || req.body?.previewId || '').trim();
+
+    if (!assetId) {
+      logRequestAudit(req.path, requestId, 400, Date.now() - startTime, 'missing_asset_id');
+      return res.status(400).json({
+        requestId,
+        success: false,
+        error: 'Preview asset ID is required in URL parameter or request body',
+        code: 'MISSING_ASSET_ID',
+      });
+    }
+
+    const asset = assetRegistry.get(assetId);
+
+    if (!asset) {
+      logRequestAudit(req.path, requestId, 404, Date.now() - startTime, `unknown_asset: ${assetId}`);
+      return res.status(404).json({
+        requestId,
+        success: false,
+        error: `Preview asset '${assetId}' was not found or has expired.`,
+        code: 'ASSET_NOT_FOUND',
+      });
+    }
+
+    // Check expiry for unapproved preview
+    if (asset.status !== 'approved' && Date.now() > asset.expiresAt) {
+      assetRegistry.delete(assetId);
+      logRequestAudit(req.path, requestId, 410, Date.now() - startTime, `expired_asset: ${assetId}`);
+      return res.status(410).json({
+        requestId,
+        success: false,
+        error: `Preview asset '${assetId}' has expired. Please regenerate a new preview.`,
+        code: 'ASSET_EXPIRED',
+      });
+    }
+
+    // Idempotency check: If already approved, return stable approved state without duplicating
+    if (asset.status === 'approved') {
+      const duration = Date.now() - startTime;
+      logRequestAudit(req.path, requestId, 200, duration, `idempotent approve: ${assetId}`);
+      return res.json({
+        requestId,
+        success: true,
+        idempotent: true,
+        message: 'Asset is already approved in pet asset set',
+        approvedAsset: {
+          id: asset.id,
+          prompt: asset.prompt,
+          imageUrl: asset.imageUrl,
+          aspectRatio: asset.aspectRatio,
+          status: 'approved',
+          targetHealthState: asset.targetHealthState,
+          approvedAt: asset.approvedAt,
+          createdAt: asset.createdAt,
+        },
+        currentApprovedAssetId,
+      });
+    }
+
+    // Promote preview asset to approved pet asset
+    const priorAssetId = currentApprovedAssetId;
+    if (priorAssetId && priorAssetId !== assetId) {
+      approvedAssetHistory.unshift(priorAssetId);
+    }
+
+    asset.status = 'approved';
+    asset.approvedAt = new Date().toISOString();
+    currentApprovedAssetId = asset.id;
+
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 200, duration, `promoted asset: ${assetId} (prior: ${priorAssetId})`);
+
+    return res.json({
+      requestId,
+      success: true,
+      message: 'Asset successfully promoted to active pet asset set',
+      approvedAsset: {
+        id: asset.id,
+        prompt: asset.prompt,
+        imageUrl: asset.imageUrl,
+        aspectRatio: asset.aspectRatio,
+        status: 'approved',
+        targetHealthState: asset.targetHealthState,
+        approvedAt: asset.approvedAt,
+        createdAt: asset.createdAt,
+      },
+      priorAssetId,
+      currentApprovedAssetId,
+    });
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    logRequestAudit(req.path, requestId, 500, duration, `error: ${String(err)}`);
+    res.status(500).json({
+      requestId,
+      success: false,
+      error: 'Asset approval failed',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+}
+
+// Routes for Images (Both spec-compliant /api/ai/images/* and legacy /api/images/*)
+app.post('/api/ai/images/generate', handleImageGenerate);
+app.post('/api/images/generate', handleImageGenerate);
+
+app.post('/api/ai/images/edit', handleImageEdit);
+app.post('/api/images/edit', handleImageEdit);
+
+app.post('/api/ai/images/:id/approve', handleImageApprove);
+app.post('/api/images/:id/approve', handleImageApprove);
+app.post('/api/ai/images/approve', handleImageApprove);
+app.post('/api/images/approve', handleImageApprove);
+
+// API: Retrieve current approved pet asset metadata
+app.get('/api/ai/images/approved', (req, res) => {
+  const currentAsset = currentApprovedAssetId ? assetRegistry.get(currentApprovedAssetId) : null;
+  res.json({
+    requestId: generateRequestId('curr_asset'),
+    success: true,
+    currentAsset: currentAsset
+      ? {
+          id: currentAsset.id,
+          prompt: currentAsset.prompt,
+          imageUrl: currentAsset.imageUrl,
+          aspectRatio: currentAsset.aspectRatio,
+          status: currentAsset.status,
+          targetHealthState: currentAsset.targetHealthState,
+          approvedAt: currentAsset.approvedAt,
+          createdAt: currentAsset.createdAt,
+        }
+      : null,
+    history: approvedAssetHistory.map((id) => {
+      const a = assetRegistry.get(id);
+      return a ? { id: a.id, prompt: a.prompt, approvedAt: a.approvedAt } : { id };
+    }),
+  });
 });
+app.get('/api/images/approved', (req, res) => res.redirect(307, '/api/ai/images/approved'));
 
 // API: TTS Voice endpoint using gemini-3.1-flash-tts-preview
 app.post('/api/voice/tts', async (req, res) => {
+  const requestId = generateRequestId('tts');
   try {
     const { text, voiceName = 'Zephyr' } = req.body;
 
     if (!text) {
-      return res.status(400).json({ error: 'Text is required for TTS' });
+      return res.status(400).json({ requestId, error: 'Text is required for TTS', code: 'INVALID_REQUEST' });
     }
 
     const ai = getGenAI();
@@ -932,6 +1741,7 @@ app.post('/api/voice/tts', async (req, res) => {
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (base64Audio) {
           return res.json({
+            requestId,
             success: true,
             audioBase64: base64Audio,
             sampleRate: 24000,
@@ -944,12 +1754,13 @@ app.post('/api/voice/tts', async (req, res) => {
     }
 
     return res.json({
+      requestId,
       success: false,
       message: 'TTS generation not active or offline. Use browser speech synthesis fallback.',
     });
   } catch (err) {
     console.error('Error in /api/voice/tts:', err);
-    res.status(500).json({ error: 'TTS request failed' });
+    res.status(500).json({ requestId, error: 'TTS request failed' });
   }
 });
 

@@ -37,7 +37,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     {
       id: 'tx_init',
       sender: 'byte',
-      text: `Woof! I'm Byte, your ambient Git companion. I'm listening—ask me about your branch ${repoState.currentBranch?.name}, pending pulls, or conflict risks!`,
+      text: `Woof! I'm Byte, your ambient Git companion. I'm listening—ask me about branch ${repoState.currentBranch?.name}, pending pulls, or conflict risks!`,
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -81,10 +81,8 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Live Voice WebSocket open');
         setVoiceState('connected');
         setStatusMessage('Live API voice channel active (Zephyr voice)');
-        // Send initial repository context to live session
         ws.send(
           JSON.stringify({
             type: 'text',
@@ -97,12 +95,9 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === 'ready') {
+          if (data.type === 'ready' || data.type === 'fallback_ready') {
             setVoiceState('listening');
             setStatusMessage('Byte is listening to your microphone...');
-          } else if (data.type === 'fallback_ready') {
-            setVoiceState('listening');
-            setStatusMessage('Voice channel ready');
           } else if (data.type === 'audio' && data.audio) {
             setVoiceState('speaking');
             audioQueueRef.current.enqueueChunk(data.audio);
@@ -144,11 +139,9 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
       };
 
       ws.onclose = () => {
-        console.log('Live Voice WebSocket closed');
         setVoiceState('disconnected');
       };
 
-      // Start Microphone stream with 16kHz audio
       await startMicrophone(ws);
     } catch (err: any) {
       console.error('Failed to start voice session:', err);
@@ -160,8 +153,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
   const startMicrophone = async (ws: WebSocket) => {
     try {
       if (!navigator?.mediaDevices?.getUserMedia) {
-        console.warn('Microphone access is not supported in this browser context.');
-        setStatusMessage('Microphone access unavailable. You can also send voice queries using quick prompts.');
+        setStatusMessage('Microphone access simulated or unavailable. You can tap quick questions.');
         startVisualizer();
         return;
       }
@@ -212,11 +204,10 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
         );
       };
 
-      // Start Visualizer Loop
       startVisualizer();
     } catch (micErr: any) {
-      console.warn('Microphone permission not granted or device unavailable:', micErr);
-      setStatusMessage('Microphone access simulated or muted. You can also tap quick questions.');
+      console.warn('Microphone permission not granted:', micErr);
+      setStatusMessage('Microphone access simulated or muted. You can tap quick questions.');
     }
   };
 
@@ -241,20 +232,17 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
 
         for (let i = 0; i < bufferLength; i++) {
           const barHeight = (dataArray[i] / 255) * height * 0.85;
-
-          // Gradient color depending on voiceState
           const isSpeakingState = voiceState === 'speaking';
           ctx.fillStyle = isSpeakingState
             ? `rgb(244, 63, 94)`
             : `rgb(${59 + i * 2}, ${130 + i}, ${246})`;
 
-          ctx.fillRect(x, height / 2 - barHeight / 2, barWidth - 1, barHeight || 3);
+          ctx.fillRect(x, height / 2 - barHeight / 2, barWidth - 1, barHeight || 2);
           x += barWidth + 1;
         }
       } else {
-        // Idle gentle waveform
         ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(0, height / 2);
         for (let i = 0; i < width; i++) {
@@ -312,7 +300,6 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'text', text }));
     } else {
-      // Fallback TTS or local response
       setTimeout(() => {
         setTranscript((prev) => [
           ...prev,
@@ -341,7 +328,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 font-sans"
+          className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 font-sans"
         >
           {/* Top Header */}
           <div
@@ -351,24 +338,24 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-colors ${
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-xs transition-colors ${
                     voiceState === 'speaking'
-                      ? 'bg-rose-600 shadow-rose-500/30'
+                      ? 'bg-rose-600'
                       : voiceState === 'listening'
-                      ? 'bg-indigo-600 shadow-indigo-500/30 animate-pulse'
-                      : 'bg-slate-800 text-slate-400'
+                      ? 'bg-indigo-600 animate-pulse'
+                      : 'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}
                 >
-                  <Radio className="w-5 h-5 text-white" />
+                  <Radio className="w-4 h-4 text-white" />
                 </div>
                 {voiceState === 'listening' && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-ping"></span>
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-ping"></span>
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-bold text-slate-100">Live Voice with Byte</h2>
-                  <span className="px-2 py-0.5 text-[10px] font-mono font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">
+                  <span className="px-2 py-0.2 text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700 rounded-full">
                     gemini-3.1-flash-live-preview
                   </span>
                 </div>
@@ -378,7 +365,7 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
             <button
               id="live-voice-close-btn"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -389,60 +376,59 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
             id="live-voice-stage"
             className="p-6 bg-slate-950/90 border-b border-slate-800 flex flex-col items-center justify-center space-y-4"
           >
-            {/* Mascot Avatar with speaking pulse */}
             <div className="relative">
               <motion.div
                 animate={{
-                  scale: voiceState === 'speaking' ? [1, 1.08, 1] : 1,
+                  scale: voiceState === 'speaking' ? [1, 1.06, 1] : 1,
                 }}
                 transition={{ repeat: Infinity, duration: 0.8 }}
-                className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-4xl shadow-2xl transition-colors ${
+                className={`w-20 h-20 rounded-full border-2 flex items-center justify-center text-3xl shadow-xl transition-colors ${
                   voiceState === 'speaking'
-                    ? 'border-rose-500 bg-rose-950/40 shadow-rose-500/30 ring-4 ring-rose-500/20'
+                    ? 'border-rose-500 bg-rose-950/40'
                     : voiceState === 'listening'
-                    ? 'border-indigo-500 bg-indigo-950/40 shadow-indigo-500/30'
+                    ? 'border-indigo-500 bg-indigo-950/40'
                     : 'border-slate-700 bg-slate-900'
                 }`}
               >
                 🐕
               </motion.div>
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-slate-800 border border-slate-700 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider text-slate-300">
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.2 bg-slate-800 border border-slate-700 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider text-slate-300">
                 {voiceState}
               </div>
             </div>
 
             {/* Waveform Canvas */}
-            <div className="w-full h-16 bg-slate-900/60 rounded-xl p-2 border border-slate-800/80 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-14 bg-slate-900/60 rounded-xl p-2 border border-slate-800 flex items-center justify-center overflow-hidden">
               <canvas
                 ref={canvasRef}
                 width={500}
-                height={64}
+                height={56}
                 className="w-full h-full"
               />
             </div>
 
             {/* Control bar */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 id="live-voice-mute-btn"
                 onClick={() => setIsMuted(!isMuted)}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl border flex items-center gap-2 transition-colors ${
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl border flex items-center gap-2 transition-colors cursor-pointer ${
                   isMuted
                     ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
                     : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
                 }`}
               >
-                {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5 text-emerald-400" />}
                 {isMuted ? 'Muted (Tap to unmute)' : 'Microphone Live'}
               </button>
 
               <button
                 id="live-voice-reconnect-btn"
                 onClick={startVoiceSession}
-                className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl transition-colors"
+                className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl transition-colors cursor-pointer"
                 title="Restart Connection"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -450,10 +436,10 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
           {/* Real-time Conversation Transcript */}
           <div
             id="live-voice-transcript"
-            className="flex-1 max-h-56 overflow-y-auto p-4 space-y-3 bg-slate-900/40 text-xs"
+            className="flex-1 max-h-52 overflow-y-auto p-4 space-y-3 bg-slate-900/40 text-xs"
           >
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" />
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <MessageSquare className="w-3 h-3" />
               Live Conversation Feed
             </div>
 
@@ -467,12 +453,12 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
                 <div
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
                     item.sender === 'user'
-                      ? 'bg-indigo-600 text-white rounded-br-none shadow-md'
+                      ? 'bg-slate-100 text-slate-900 rounded-br-none font-medium'
                       : 'bg-slate-800 border border-slate-700/80 text-slate-200 rounded-bl-none'
                   }`}
                 >
-                  <div className="font-semibold text-[10px] mb-0.5 opacity-75">
-                    {item.sender === 'user' ? 'You (Spoken)' : 'Byte (Companion)'} • {item.timestamp}
+                  <div className="font-semibold text-[10px] mb-0.5 opacity-70">
+                    {item.sender === 'user' ? 'You (Voice)' : 'Byte (Companion)'} • {item.timestamp}
                   </div>
                   <p>{item.text}</p>
                 </div>
@@ -486,8 +472,8 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
             id="live-voice-quick-prompts"
             className="p-4 border-t border-slate-800 bg-slate-950/80 space-y-2"
           >
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Quick Voice Questions:
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Quick Voice Inquiries:
             </span>
             <div className="flex flex-wrap gap-1.5">
               {[
@@ -499,10 +485,10 @@ export const LiveVoiceModal: React.FC<LiveVoiceModalProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleSendTextPrompt(query)}
-                  className="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-colors text-left flex items-center gap-1.5"
+                  className="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-colors text-left flex items-center gap-1.5 cursor-pointer"
                 >
                   <Zap className="w-3 h-3 text-amber-400" />
-                  {query}
+                  <span>{query}</span>
                 </button>
               ))}
             </div>

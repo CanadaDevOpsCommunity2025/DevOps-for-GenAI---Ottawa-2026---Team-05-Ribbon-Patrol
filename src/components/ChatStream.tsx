@@ -22,6 +22,7 @@ import {
   Shield,
   GraduationCap,
   Dog,
+  Mic,
 } from 'lucide-react';
 import { ChatMessage, RecommendedAction, RepositoryState, ChatRole, ModelTier } from '../types';
 
@@ -95,7 +96,6 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 
     setSpeakingMessageId(msgId);
 
-    // Call server TTS endpoint with gemini-3.1-flash-tts-preview or browser fallback
     try {
       const res = await fetch('/api/voice/tts', {
         method: 'POST',
@@ -110,7 +110,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
           const playPromise = audio.play();
           if (playPromise !== undefined) {
             playPromise.catch((e) => {
-              console.warn('Audio play was interrupted or disallowed:', e);
+              console.warn('Audio play interrupted:', e);
               setSpeakingMessageId(null);
             });
           }
@@ -118,7 +118,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
           audio.onerror = () => setSpeakingMessageId(null);
           return;
         } catch (audioErr) {
-          console.warn('Audio instantiation failed:', audioErr);
+          console.warn('Audio instantiation error:', audioErr);
         }
       }
     } catch (_) {}
@@ -142,15 +142,15 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
     'EMERGENCY: What is the work-loss risk?',
     'Explain branch divergence',
     'How safe is pulling from upstream?',
-    'Review my uncommitted changes',
+    'Review uncommitted files',
     'Show git DAG topology',
   ];
 
   const ROLES: { id: ChatRole; label: string; icon: React.ReactNode; desc: string }[] = [
-    { id: 'byte_mascot', label: 'Byte (Mascot)', icon: <Dog className="w-3.5 h-3.5" />, desc: 'Friendly, ambient companion' },
-    { id: 'senior_architect', label: 'Senior Architect', icon: <Cpu className="w-3.5 h-3.5" />, desc: 'Deep DAG & topological analysis' },
-    { id: 'safety_auditor', label: 'Safety Auditor', icon: <Shield className="w-3.5 h-3.5" />, desc: 'Zero data-loss compliance' },
-    { id: 'git_tutor', label: 'Git Tutor', icon: <GraduationCap className="w-3.5 h-3.5" />, desc: 'Mental models & pedagogy' },
+    { id: 'byte_mascot', label: 'Byte Mascot', icon: <Dog className="w-3.5 h-3.5" />, desc: 'Friendly, ambient companion' },
+    { id: 'senior_architect', label: 'Architect', icon: <Cpu className="w-3.5 h-3.5" />, desc: 'Deep DAG & topological analysis' },
+    { id: 'safety_auditor', label: 'Auditor', icon: <Shield className="w-3.5 h-3.5" />, desc: 'Zero data-loss compliance' },
+    { id: 'git_tutor', label: 'Tutor', icon: <GraduationCap className="w-3.5 h-3.5" />, desc: 'Mental models & pedagogy' },
   ];
 
   const TIERS: { id: ModelTier; label: string; model: string; icon: React.ReactNode }[] = [
@@ -162,18 +162,18 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
   return (
     <div
       id="gitpet-chat-container"
-      className="flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden"
+      className="flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden"
     >
       {/* Chat Header & Role / Model Selector */}
-      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/70 space-y-2.5">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+            <div className="w-6 h-6 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
               <Bot className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-slate-800">Multi-Turn Gemini Companion</h3>
-              <p className="text-[10px] text-slate-500">Evidence-based advice & reversible Git actions</p>
+              <h3 className="text-xs font-bold text-slate-900">Multi-Turn Gemini Companion</h3>
+              <p className="text-[10px] text-slate-400">Evidence-based advice & reversible Git actions</p>
             </div>
           </div>
 
@@ -181,69 +181,73 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
           <button
             id="chat-live-voice-btn"
             onClick={onOpenVoiceModal}
-            className="px-2.5 py-1 bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white text-[11px] font-semibold rounded-full flex items-center gap-1.5 shadow-sm transition-all"
+            className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
             title="Start hands-free live voice conversation"
           >
-            <Volume2 className="w-3 h-3" />
-            <span>Live Voice Mode</span>
+            <Mic className="w-3 h-3 text-indigo-600" />
+            <span>Live Voice</span>
           </button>
         </div>
 
         {/* Roles & Model Tiers Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/40 text-[11px]">
           {/* Persona Selector */}
           <div className="flex items-center gap-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Role:</span>
-            {ROLES.map((role) => (
-              <button
-                key={role.id}
-                onClick={() => setSelectedRole(role.id)}
-                className={`px-2 py-0.5 rounded-lg font-medium flex items-center gap-1 transition-all ${
-                  selectedRole === role.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200/70'
-                }`}
-                title={role.desc}
-              >
-                {role.icon}
-                <span className="hidden sm:inline">{role.label}</span>
-              </button>
-            ))}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
+              {ROLES.map((role) => (
+                <button
+                  key={role.id}
+                  onClick={() => setSelectedRole(role.id)}
+                  className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all cursor-pointer ${
+                    selectedRole === role.id
+                      ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={role.desc}
+                >
+                  {role.icon}
+                  <span className="hidden sm:inline">{role.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Model Speed / Depth Tier */}
           <div className="flex items-center gap-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Model:</span>
-            {TIERS.map((tier) => (
-              <button
-                key={tier.id}
-                onClick={() => setSelectedTier(tier.id)}
-                className={`px-2 py-0.5 rounded-lg font-medium flex items-center gap-1 transition-all ${
-                  selectedTier === tier.id
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-200/70 border border-slate-200/70'
-                }`}
-                title={`Powered by ${tier.model}`}
-              >
-                {tier.icon}
-                <span>{tier.label}</span>
-              </button>
-            ))}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
+              {TIERS.map((tier) => (
+                <button
+                  key={tier.id}
+                  onClick={() => setSelectedTier(tier.id)}
+                  className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all cursor-pointer ${
+                    selectedTier === tier.id
+                      ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title={`Powered by ${tier.model}`}
+                >
+                  {tier.icon}
+                  <span>{tier.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Message List */}
-      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[480px] min-h-[320px]">
+      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[520px] min-h-[340px]">
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
-              className={`flex items-start gap-2.5 max-w-[92%] sm:max-w-[85%] ${
+              className={`flex items-start gap-2.5 max-w-[94%] sm:max-w-[88%] ${
                 msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
               }`}
             >
@@ -251,24 +255,24 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
                   msg.sender === 'user'
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-xs'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-800 border border-slate-200/80 shadow-2xs'
                 }`}
               >
                 {msg.sender === 'user' ? <User className="w-3.5 h-3.5" /> : '🐕'}
               </div>
 
               {/* Bubble */}
-              <div className="space-y-3">
+              <div className="space-y-3 w-full">
                 <div
                   className={`p-3.5 rounded-2xl text-xs leading-relaxed text-left ${
                     msg.sender === 'user'
                       ? 'bg-slate-900 text-slate-100 rounded-tr-xs'
-                      : 'bg-slate-50 border border-slate-200/90 text-slate-800 rounded-tl-xs shadow-xs'
+                      : 'bg-slate-50/80 border border-slate-200/80 text-slate-800 rounded-tl-xs shadow-2xs'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-200/40 text-[10px] text-slate-400">
-                    <span className="font-semibold">
+                    <span className="font-semibold text-slate-600">
                       {msg.sender === 'user'
                         ? 'You'
                         : msg.role === 'senior_architect'
@@ -281,7 +285,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                     </span>
                     <div className="flex items-center gap-1.5">
                       {msg.modelUsed && (
-                        <span className="px-1.5 py-0.2 bg-slate-200/60 text-slate-600 rounded text-[9px] font-mono">
+                        <span className="px-1.5 py-0.2 bg-white text-slate-500 rounded border border-slate-200/60 text-[9px] font-mono">
                           {msg.modelUsed}
                         </span>
                       )}
@@ -289,7 +293,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                       {msg.sender === 'assistant' && (
                         <button
                           onClick={() => handleTTS(msg.id, msg.text)}
-                          className="p-1 hover:text-blue-600 text-slate-400 transition-colors"
+                          className="p-1 hover:text-slate-800 text-slate-400 transition-colors cursor-pointer"
                           title="Read aloud with Byte's voice"
                         >
                           {speakingMessageId === msg.id ? (
@@ -306,9 +310,9 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 
                   {/* Evidence summary bullet points */}
                   {msg.evidenceSummary && msg.evidenceSummary.evidencePoints?.length > 0 && (
-                    <div className="mt-3 pt-2.5 border-t border-slate-200/80">
+                    <div className="mt-3 pt-2.5 border-t border-slate-200/60">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        Repository Evidence
+                        Repository Evidence Signals
                       </div>
                       <ul className="space-y-1 text-[11px] text-slate-600">
                         {msg.evidenceSummary.evidencePoints.map((pt, idx) => (
@@ -327,10 +331,10 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                   <motion.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className={`p-4 rounded-2xl bg-white border-2 shadow-md text-left space-y-3 ${
+                    className={`p-4 rounded-2xl bg-white border shadow-sm text-left space-y-3 ${
                       state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
                         ? 'border-rose-300 ring-2 ring-rose-500/10'
-                        : 'border-blue-200'
+                        : 'border-slate-200/90'
                     }`}
                   >
                     {/* Action Header */}
@@ -362,14 +366,14 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          {msg.recommendedAction.confidence} Confidence ({msg.recommendedAction.confidenceScore}%)
+                          {msg.recommendedAction.confidence} ({msg.recommendedAction.confidenceScore}%)
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             msg.recommendedAction.riskLevel === 'Hazard'
                               ? 'bg-rose-100 text-rose-800 border border-rose-300 font-extrabold'
                               : msg.recommendedAction.riskLevel === 'Safe'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              ? 'bg-slate-100 text-slate-700 border border-slate-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
                           }`}
                         >
@@ -420,14 +424,14 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                       <button
                         id={`preview-action-btn-${msg.id}`}
                         onClick={() => onPreviewAction(msg.recommendedAction!)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5 text-slate-500" />
                         <span>Preview Changes</span>
                       </button>
 
                       {msg.executed ? (
-                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           <span>Action Verified & Synchronized</span>
                         </div>
@@ -436,10 +440,10 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                           id={`confirm-tidy-action-btn-${msg.id}`}
                           onClick={() => onExecuteAction(msg.recommendedAction!)}
                           disabled={executingActionId === msg.recommendedAction.id}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer ${
+                          className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer ${
                             state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
-                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
-                              : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+                              : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/10'
                           }`}
                         >
                           {executingActionId === msg.recommendedAction.id ? (
@@ -491,13 +495,13 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
         {/* Loading Indicator */}
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-slate-500 pl-2">
-            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs">
+            <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs">
               🐕
             </div>
-            <div className="flex items-center gap-1 bg-slate-100 px-3 py-2 rounded-2xl">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce" />
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:0.2s]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-bounce [animation-delay:0.4s]" />
+            <div className="flex items-center gap-1.5 bg-slate-100/80 border border-slate-200/60 px-3 py-2 rounded-2xl">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-bounce" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-bounce [animation-delay:0.2s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-bounce [animation-delay:0.4s]" />
               <span className="text-[11px] text-slate-500 ml-1">
                 Consulting {selectedTier === 'deep' ? 'gemini-3.1-pro' : selectedTier === 'fast' ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash'}...
               </span>
@@ -509,14 +513,14 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
       </div>
 
       {/* Quick Prompts */}
-      <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-        <Sparkles className="w-3 h-3 text-blue-500 shrink-0" />
+      <div className="px-4 py-2 bg-slate-50/50 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+        <Sparkles className="w-3 h-3 text-slate-400 shrink-0" />
         {quickPrompts.map((prompt, idx) => (
           <button
             key={idx}
             onClick={() => onSendMessage(prompt, selectedRole, selectedTier)}
             disabled={isLoading}
-            className="text-[11px] font-medium text-slate-600 hover:text-blue-600 bg-white hover:bg-blue-50/60 px-2.5 py-1 rounded-full border border-slate-200 transition-colors whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
+            className="text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200/80 transition-colors whitespace-nowrap shrink-0 shadow-2xs cursor-pointer"
           >
             {prompt}
           </button>
@@ -524,21 +528,21 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="p-3 sm:p-4 border-t border-slate-100 bg-white flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="p-3 sm:p-3.5 border-t border-slate-100 bg-white flex items-center gap-2">
         <input
           id="gitpet-chat-input"
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={`Ask ${selectedRole === 'senior_architect' ? 'Senior Architect' : selectedRole === 'safety_auditor' ? 'Safety Auditor' : selectedRole === 'git_tutor' ? 'Git Tutor' : 'Byte'} about repos, stashes, or safe commands...`}
+          placeholder={`Ask ${selectedRole === 'senior_architect' ? 'Architect' : selectedRole === 'safety_auditor' ? 'Safety Auditor' : selectedRole === 'git_tutor' ? 'Git Tutor' : 'Byte'} about repos, stashes, or safe commands...`}
           disabled={isLoading}
-          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+          className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all placeholder:text-slate-400"
         />
         <button
           id="gitpet-chat-send-btn"
           type="submit"
           disabled={!inputText.trim() || isLoading}
-          className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 disabled:hover:bg-blue-600 transition-all shadow-sm cursor-pointer"
+          className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40 disabled:hover:bg-slate-900 transition-all shadow-2xs cursor-pointer"
         >
           <Send className="w-4 h-4" />
         </button>

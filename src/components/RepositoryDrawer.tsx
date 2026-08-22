@@ -57,24 +57,34 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
           className="absolute inset-y-0 right-0 max-w-full flex pl-10"
         >
           <div className="w-screen max-w-md sm:max-w-lg bg-white shadow-2xl border-l border-slate-200 flex flex-col">
             {/* Drawer Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                <div className="p-2 rounded-xl bg-slate-900 text-white shadow-2xs">
                   <Layers className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Repository Details & Graph</h3>
-                  <p className="text-xs text-slate-500 font-mono">{state.repoName}</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">Repository Details & Graph</h3>
+                    {state.isLiveMode && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono">
+                    {state.repoName} {state.scannedAt ? `• ${new Date(state.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -84,16 +94,16 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
             <div className="flex items-center border-b border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600">
               <button
                 onClick={() => setActiveTab('working_tree')}
-                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'working_tree'
-                    ? 'border-blue-600 text-blue-600 font-bold'
-                    : 'border-transparent hover:text-slate-900'
+                    ? 'border-slate-900 text-slate-900 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <FileCode className="w-3.5 h-3.5" />
                 <span>Working Tree</span>
                 {state.workingTree.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
                     {state.workingTree.length}
                   </span>
                 )}
@@ -101,28 +111,28 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
 
               <button
                 onClick={() => setActiveTab('divergence')}
-                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'divergence'
-                    ? 'border-blue-600 text-blue-600 font-bold'
-                    : 'border-transparent hover:text-slate-900'
+                    ? 'border-slate-900 text-slate-900 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <GitBranch className="w-3.5 h-3.5" />
-                <span>Divergence Graph</span>
+                <span>Divergence</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('stashes')}
-                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'stashes'
-                    ? 'border-blue-600 text-blue-600 font-bold'
-                    : 'border-transparent hover:text-slate-900'
+                    ? 'border-slate-900 text-slate-900 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <Archive className="w-3.5 h-3.5" />
                 <span>Stashes</span>
                 {state.stashes.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700">
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
                     {state.stashes.length}
                   </span>
                 )}
@@ -130,10 +140,10 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
 
               <button
                 onClick={() => setActiveTab('audit')}
-                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-3 px-3 border-b-2 flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'audit'
-                    ? 'border-blue-600 text-blue-600 font-bold'
-                    : 'border-transparent hover:text-slate-900'
+                    ? 'border-slate-900 text-slate-900 font-bold'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
                 <History className="w-3.5 h-3.5" />
@@ -146,16 +156,16 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
               {/* TAB 1: WORKING TREE */}
               {activeTab === 'working_tree' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Uncommitted changes ({state.workingTree.length} files)</span>
-                    <span className="font-mono text-[11px]">HEAD: {state.currentBranch.lastCommitHash}</span>
+                    <span className="font-mono text-[11px] text-slate-500">HEAD: {state.currentBranch.lastCommitHash}</span>
                   </div>
 
                   {state.workingTree.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
                       <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                       <p className="text-xs font-bold text-slate-800">Working tree clean</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-400 mt-0.5">
                         No untracked or modified files present in workspace.
                       </p>
                     </div>
@@ -170,7 +180,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                             onClick={() =>
                               setExpandedFile(expandedFile === file.path ? null : file.path)
                             }
-                            className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs transition-colors"
+                            className="w-full px-3.5 py-2.5 bg-slate-50/70 hover:bg-slate-100/70 flex items-center justify-between text-xs transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2 font-mono text-slate-800">
                               {expandedFile === file.path ? (
@@ -182,7 +192,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                             </div>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
                                   file.status === 'conflicted'
                                     ? 'bg-rose-100 text-rose-700'
                                     : 'bg-amber-100 text-amber-700'
@@ -190,10 +200,10 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                               >
                                 {file.status}
                               </span>
-                              <span className="text-[10px] font-semibold text-emerald-600">
+                              <span className="text-[10px] font-semibold text-emerald-600 font-mono">
                                 +{file.additions}
                               </span>
-                              <span className="text-[10px] font-semibold text-rose-600">
+                              <span className="text-[10px] font-semibold text-rose-600 font-mono">
                                 -{file.deletions}
                               </span>
                             </div>
@@ -217,27 +227,35 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-slate-800">Branch Tracking Topology</span>
-                      <span className="text-[10px] font-mono text-blue-600">
-                        {state.currentBranch.name} ↔ {state.currentBranch.upstream || 'no-upstream'}
+                      <span className="text-[10px] font-mono text-slate-600">
+                        {state.currentBranch.name} ↔ {state.currentBranch.upstream || (state.upstreamUnavailable ? 'upstream unavailable' : 'no-upstream')}
                       </span>
                     </div>
+
+                    {state.upstreamUnavailable && (
+                      <div className="mb-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>No upstream tracking branch configured for {state.currentBranch.name}. Run <code className="font-mono bg-amber-100 px-1 py-0.5 rounded text-[10px]">git push -u origin {state.currentBranch.name}</code> to attach upstream.</span>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="p-2 rounded bg-white border border-slate-200/80 flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-white border border-slate-200/80 flex items-center gap-2">
                         <ArrowUp className="w-4 h-4 text-blue-600" />
                         <div>
                           <span className="font-bold text-slate-800">
                             {state.currentBranch.aheadCount} Ahead
                           </span>
-                          <p className="text-[10px] text-slate-500">Unpushed local commits</p>
+                          <p className="text-[10px] text-slate-400">Unpushed local commits</p>
                         </div>
                       </div>
-                      <div className="p-2 rounded bg-white border border-slate-200/80 flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-white border border-slate-200/80 flex items-center gap-2">
                         <ArrowDown className="w-4 h-4 text-amber-600" />
                         <div>
                           <span className="font-bold text-slate-800">
                             {state.currentBranch.behindCount} Behind
                           </span>
-                          <p className="text-[10px] text-slate-500">Remote commits on origin</p>
+                          <p className="text-[10px] text-slate-400">Remote commits on origin</p>
                         </div>
                       </div>
                     </div>
@@ -246,7 +264,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                   {/* Remote Commits Behind */}
                   {state.remoteCommitsBehind.length > 0 && (
                     <div>
-                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <ArrowDown className="w-3.5 h-3.5 text-amber-500" />
                         <span>Incoming Remote Commits ({state.remoteCommitsBehind.length})</span>
                       </h4>
@@ -255,7 +273,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                           <div key={c.hash} className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-200/70 text-xs">
                             <div className="flex items-center justify-between">
                               <span className="font-mono text-[11px] font-bold text-amber-900">{c.shortHash}</span>
-                              <span className="text-[10px] text-slate-500">{c.timestamp}</span>
+                              <span className="text-[10px] text-slate-400">{c.timestamp}</span>
                             </div>
                             <p className="font-semibold text-slate-800 mt-0.5">{c.message}</p>
                             <span className="text-[10px] text-slate-500">{c.author}</span>
@@ -268,7 +286,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                   {/* Local Commits Ahead */}
                   {state.localCommitsAhead.length > 0 && (
                     <div>
-                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <ArrowUp className="w-3.5 h-3.5 text-blue-500" />
                         <span>Local Commits Ahead ({state.localCommitsAhead.length})</span>
                       </h4>
@@ -277,7 +295,7 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                           <div key={c.hash} className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-200/70 text-xs">
                             <div className="flex items-center justify-between">
                               <span className="font-mono text-[11px] font-bold text-blue-900">{c.shortHash}</span>
-                              <span className="text-[10px] text-slate-500">{c.timestamp}</span>
+                              <span className="text-[10px] text-slate-400">{c.timestamp}</span>
                             </div>
                             <p className="font-semibold text-slate-800 mt-0.5">{c.message}</p>
                             <span className="text-[10px] text-slate-500">{c.author}</span>
@@ -292,15 +310,15 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
               {/* TAB 3: STASHES */}
               {activeTab === 'stashes' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Local Stash Stack ({state.stashes.length} items)</span>
                   </div>
 
                   {state.stashes.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
                       <Archive className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs font-bold text-slate-800">No stashed changes</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-400 mt-0.5">
                         Git stashes are created automatically during safe pull actions.
                       </p>
                     </div>
@@ -326,12 +344,12 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
               {/* TAB 4: AUDIT LOG */}
               {activeTab === 'audit' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Safe Actions Executed ({auditHistory.length})</span>
                     {auditHistory.length > 0 && onRollbackLastAction && (
                       <button
                         onClick={onRollbackLastAction}
-                        className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
+                        className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" /> Rollback Last Action
                       </button>
@@ -339,10 +357,10 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
                   </div>
 
                   {auditHistory.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
                       <History className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs font-bold text-slate-800">No actions executed yet</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-[11px] text-slate-400 mt-0.5">
                         Approved safe Git commands will be audited here with instant rollback.
                       </p>
                     </div>
@@ -372,10 +390,10 @@ export const RepositoryDrawer: React.FC<RepositoryDrawerProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 text-right">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/60 text-right">
               <button
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 Close Drawer
               </button>

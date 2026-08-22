@@ -14,8 +14,10 @@ import {
   Award,
   Wand2,
   Mic,
+  Activity,
+  RefreshCw,
 } from 'lucide-react';
-import { RepositoryState, PracticeStats } from '../types';
+import { RepositoryState, PracticeStats, LiveScanState } from '../types';
 
 interface TopBarProps {
   state: RepositoryState;
@@ -26,6 +28,9 @@ interface TopBarProps {
   onOpenImageStudio: () => void;
   onOpenVoiceModal: () => void;
   isDrawerOpen: boolean;
+  isLiveMode?: boolean;
+  liveScanState?: LiveScanState;
+  onRefreshLive?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -37,6 +42,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenImageStudio,
   onOpenVoiceModal,
   isDrawerOpen,
+  isLiveMode = false,
+  liveScanState,
+  onRefreshLive,
 }) => {
   const [showBranchMenu, setShowBranchMenu] = useState(false);
   const [showBadgeMenu, setShowBadgeMenu] = useState(false);
@@ -49,64 +57,99 @@ export const TopBar: React.FC<TopBarProps> = ({
   return (
     <header
       id="gitpet-header"
-      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+      className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-2.5 transition-all"
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-        {/* Left: Brand + Repo + Branch Selector */}
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        {/* Left Section: Brand Logo + Repo & Branch Selector + Status */}
         <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-          {/* Logo & Pet Avatar */}
+          {/* Brand Mark */}
           <div className="flex items-center gap-2.5">
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-sm ring-2 ring-blue-100">
-              <span className="text-base">🐕</span>
+            <div className="relative w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-base shadow-xs ring-1 ring-slate-800/10">
+              <span>🐕</span>
               <span
-                className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
                   isHealthy
                     ? 'bg-emerald-500'
                     : isAttention
                     ? 'bg-amber-500'
                     : isBlocked
                     ? 'bg-rose-500'
-                    : 'bg-rose-600 ring-2 ring-rose-300 animate-pulse'
+                    : 'bg-rose-600 ring-2 ring-rose-300 animate-ping'
                 }`}
               />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-slate-900 tracking-tight text-sm">GitPet</span>
-                <span
-                  className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border ${
-                    isUnsafe
-                      ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}
-                >
-                  {isUnsafe ? 'UNSAFE 0%' : 'Ambient'}
-                </span>
+                {isLiveMode ? (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      id="live-mode-badge"
+                      className="text-[9px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/80 flex items-center gap-1 shadow-2xs"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Workspace
+                    </span>
+                    {onRefreshLive && (
+                      <button
+                        id="refresh-live-btn"
+                        onClick={onRefreshLive}
+                        disabled={liveScanState?.loading}
+                        title="Scan active local repository status"
+                        className="p-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1 text-[10px] font-semibold px-1.5"
+                      >
+                        <RefreshCw
+                          className={`w-2.5 h-2.5 ${liveScanState?.loading ? 'animate-spin text-emerald-600' : ''}`}
+                        />
+                        <span className="hidden sm:inline">
+                          {liveScanState?.loading ? 'Scanning...' : 'Scan Now'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    className={`text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full ${
+                      isUnsafe
+                        ? 'bg-rose-100 text-rose-800 font-extrabold animate-pulse'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {isUnsafe ? 'Hazard Alert' : 'Sandbox Preset'}
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-slate-500 font-mono hidden md:block">
-                {state.repoName}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] text-slate-400 font-mono hidden md:block leading-tight">
+                  {state.repoName}
+                </p>
+                {isLiveMode && liveScanState?.lastRefreshed && (
+                  <span className="text-[10px] text-slate-400 font-mono hidden lg:inline">
+                    • {liveScanState.lastRefreshed}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="h-5 w-[1px] bg-slate-200 hidden sm:block" />
+          <div className="h-4 w-[1px] bg-slate-200 hidden sm:block" />
 
           {/* Current Branch Dropdown */}
           <div className="relative">
             <button
               id="branch-selector-button"
               onClick={() => setShowBranchMenu(!showBranchMenu)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-100/70 hover:bg-slate-200/70 text-slate-700 border border-slate-200/60 transition-colors cursor-pointer"
             >
-              <GitBranch className="w-3.5 h-3.5 text-blue-600" />
-              <span className="max-w-[140px] truncate">{state.currentBranch.name}</span>
+              <GitBranch className="w-3.5 h-3.5 text-slate-500" />
+              <span className="max-w-[130px] truncate font-mono text-[11px]">{state.currentBranch.name}</span>
               <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
 
             {showBranchMenu && (
-              <div className="absolute left-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Switch Active Branch
+                  Select Active Branch
                 </div>
                 {state.allBranches.map((b) => (
                   <button
@@ -115,12 +158,12 @@ export const TopBar: React.FC<TopBarProps> = ({
                       onSelectBranch(b);
                       setShowBranchMenu(false);
                     }}
-                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 ${
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
                       b === state.currentBranch.name ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <GitBranch className="w-3 h-3 text-slate-400" />
+                    <span className="flex items-center gap-2 font-mono text-[11px]">
+                      <GitBranch className="w-3.5 h-3.5 text-slate-400" />
                       {b}
                     </span>
                     {b === state.currentBranch.name && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />}
@@ -133,10 +176,10 @@ export const TopBar: React.FC<TopBarProps> = ({
           {/* Ahead/Behind Sync Pill */}
           <div
             id="sync-status-pill"
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono border ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono border ${
               isUnsafe
-                ? 'bg-rose-50 text-rose-800 border-rose-300'
-                : 'bg-slate-100 text-slate-700 border-slate-200/80'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-white text-slate-600 border-slate-200/80 shadow-2xs'
             }`}
           >
             <span className={state.currentBranch.aheadCount > 0 ? 'text-blue-600 font-bold' : 'text-slate-400'}>
@@ -147,31 +190,32 @@ export const TopBar: React.FC<TopBarProps> = ({
               ↓{state.currentBranch.behindCount}
             </span>
             {isUnsafe && (
-              <span className="text-[10px] font-bold text-rose-700 bg-rose-200/70 px-1 py-0.2 rounded ml-1">
-                HAZARD
+              <span className="text-[9px] font-bold text-rose-700 bg-rose-200/80 px-1 py-0.2 rounded ml-0.5">
+                0%
               </span>
             )}
           </div>
         </div>
 
-        {/* Right: Practice Streak + Badges + Pitch Deck & Drawer Buttons */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right Section: Streak Popover + Consolidated Action Buttons */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {/* Clean Review Streak Button / Popover */}
           <div className="relative">
             <button
               id="streak-badge-button"
               onClick={() => setShowBadgeMenu(!showBadgeMenu)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100/80 text-orange-800 border border-orange-200 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
             >
-              <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />
-              <span>{practiceStats.cleanCommitStreak} Clean Reviews</span>
+              <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <span className="hidden sm:inline">{practiceStats.cleanCommitStreak} Clean Reviews</span>
+              <span className="sm:hidden">{practiceStats.cleanCommitStreak}</span>
             </button>
 
             {showBadgeMenu && (
               <div className="absolute right-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <Award className="w-4 h-4 text-orange-500" /> Repository Stewardship
+                    <Award className="w-4 h-4 text-amber-500" /> Repository Stewardship
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Safe Git Habits</span>
                 </div>
@@ -181,8 +225,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                       key={b.id}
                       className="p-2 rounded-lg bg-slate-50 border border-slate-200/60 flex items-start gap-2.5 text-left"
                     >
-                      <div className="p-1.5 bg-white rounded-md border border-slate-200 text-blue-600 shadow-xs">
-                        {b.id === 'clean_streak' && <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500" />}
+                      <div className="p-1.5 bg-white rounded-md border border-slate-200 text-blue-600 shadow-2xs">
+                        {b.id === 'clean_streak' && <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />}
                         {b.id === 'branch_steward' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
                         {b.id === 'verified_sync' && <GitPullRequest className="w-3.5 h-3.5 text-blue-600" />}
                       </div>
@@ -206,46 +250,47 @@ export const TopBar: React.FC<TopBarProps> = ({
             )}
           </div>
 
-          {/* Avatar Studio Trigger */}
+          {/* Avatar Studio Action */}
           <button
             id="open-image-studio-button"
             onClick={onOpenImageStudio}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
             title="Design & Edit Custom Mascot Skins (gemini-3.1-flash-image)"
           >
-            <Wand2 className="w-3.5 h-3.5 text-rose-600" />
-            <span className="hidden lg:inline">Avatar Studio</span>
+            <Wand2 className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden md:inline">Avatar Studio</span>
           </button>
 
-          {/* Live Voice Trigger */}
+          {/* Live Voice Action */}
           <button
             id="open-live-voice-button"
             onClick={onOpenVoiceModal}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
             title="Real-time Live Voice (gemini-3.1-flash-live-preview)"
           >
             <Mic className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden lg:inline">Live Voice</span>
+            <span className="hidden md:inline">Live Voice</span>
           </button>
 
-          {/* 90-sec Demo / Pitch Deck Trigger */}
+          {/* Pitch Deck / Demo Action */}
           <button
             id="open-pitch-deck-button"
             onClick={onOpenPitchDeck}
-            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+            title="Open Pitch Deck & Demo Guide"
           >
-            <Presentation className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Pitch Deck</span>
+            <Presentation className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden lg:inline">Pitch Deck</span>
           </button>
 
           {/* Repository Drawer Toggle */}
           <button
             id="toggle-repo-drawer-button"
             onClick={onToggleDrawer}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
+            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
               isDrawerOpen
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -253,7 +298,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {state.workingTree.length > 0 && (
               <span
                 className={`text-[10px] px-1 rounded-full font-bold ${
-                  isDrawerOpen ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'
+                  isDrawerOpen ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'
                 }`}
               >
                 {state.workingTree.length}

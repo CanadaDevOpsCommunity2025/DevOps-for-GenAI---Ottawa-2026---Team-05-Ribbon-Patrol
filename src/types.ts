@@ -66,6 +66,10 @@ export interface RepositoryState {
   operatorMeaning: string;
   destructiveRiskWarning?: string;
   lossRiskSummary?: string;
+  isLiveMode?: boolean;
+  upstreamUnavailable?: boolean;
+  repositoryUnavailable?: boolean;
+  scannedAt?: string;
 }
 
 export interface RecommendedAction {
@@ -118,6 +122,8 @@ export type ChatRole =
 
 export type ModelTier = 'fast' | 'general' | 'deep';
 
+export type AssetStatus = 'preview' | 'approved';
+
 export interface GeneratedImage {
   id: string;
   prompt: string;
@@ -126,7 +132,26 @@ export interface GeneratedImage {
   aspectRatio: string;
   mode: 'create' | 'edit';
   originalImage?: string;
+  sourceAssetId?: string;
+  status?: AssetStatus;
+  targetHealthState?: HealthLevel;
+  requestId?: string;
+  approvedAt?: string;
 }
+
+export interface PetAsset {
+  id: string;
+  prompt: string;
+  imageUrl: string;
+  aspectRatio: string;
+  status: AssetStatus;
+  targetHealthState?: HealthLevel;
+  sourceAssetId?: string;
+  createdAt: string;
+  approvedAt?: string;
+  requestId?: string;
+}
+
 
 export type LiveVoiceState =
   | 'disconnected'
@@ -171,4 +196,32 @@ export interface ScenarioPreset {
   petExpression: string;
   state: RepositoryState;
   samplePrompt: string;
+}
+
+export interface LiveWorkspaceStatusResponse {
+  requestId: string;
+  success: boolean;
+  live: true;
+  timestamp: string;
+  repositoryUnavailable?: boolean;
+  upstreamUnavailable?: boolean;
+  isDetached?: boolean;
+  message?: string;
+  state?: RepositoryState;
+  rawSummary?: {
+    branch: string;
+    upstream: string | null;
+    aheadCount: number;
+    behindCount: number;
+    dirtyFileCount: number;
+    totalDirtyFiles: number;
+    isDetached: boolean;
+  };
+}
+
+export interface LiveScanState {
+  loading: boolean;
+  lastRefreshed?: string;
+  error?: string | null;
+  unavailable?: boolean;
 }

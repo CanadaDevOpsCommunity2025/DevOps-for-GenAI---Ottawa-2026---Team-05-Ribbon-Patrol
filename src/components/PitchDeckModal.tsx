@@ -44,13 +44,13 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
             Repository divergence happens silently in the background: teammates push upstream, working directories accumulate untracked edits, and merge conflicts lurk unannounced until a terminal pull breaks in-flight work.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
+            <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200/80">
               <span className="text-xs font-bold text-rose-900 block mb-1">Terminal-First Fatigue</span>
               <p className="text-[11px] text-rose-800 leading-normal">
                 Developers must manually run <code className="font-mono bg-white px-1 rounded">git fetch</code>, <code className="font-mono bg-white px-1 rounded">git status</code>, and inspect log divergence before knowing if it's safe to pull.
               </p>
             </div>
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80">
               <span className="text-xs font-bold text-amber-900 block mb-1">Work Contamination</span>
               <p className="text-[11px] text-amber-800 leading-normal">
                 Pulling while holding uncommitted local changes frequently creates untracked merge accidents, dirty stashes, and lost focus.
@@ -84,10 +84,10 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
                 Evidence-based plain-English explanation citing commits & file diffs.
               </p>
             </div>
-            <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200">
+            <div className="p-3 rounded-xl bg-slate-100 border border-slate-200">
               <div className="text-lg mb-1">🛡️</div>
-              <span className="text-xs font-bold text-indigo-900 block">3. Resolve</span>
-              <p className="text-[10px] text-indigo-700 mt-1">
+              <span className="text-xs font-bold text-slate-900 block">3. Resolve</span>
+              <p className="text-[10px] text-slate-600 mt-1">
                 Human-approved bounded action with guaranteed rollback steps.
               </p>
             </div>
@@ -167,10 +167,10 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
       content: (
         <div className="space-y-4 text-left">
           <div className="grid grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-xl bg-orange-50 border border-orange-200 text-center">
-              <Flame className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-              <span className="text-xs font-bold text-orange-950 block">Clean Review Streak</span>
-              <p className="text-[10px] text-orange-800 mt-1">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-center">
+              <Flame className="w-5 h-5 text-amber-500 mx-auto mb-1" />
+              <span className="text-xs font-bold text-amber-950 block">Clean Review Streak</span>
+              <p className="text-[10px] text-amber-800 mt-1">
                 Increments every time a proposed diff is verified before pushing.
               </p>
             </div>
@@ -198,7 +198,7 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-2xs">
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -206,68 +206,68 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
           className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
                 <Presentation className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">GitPet Pitch Deck & Demo Guide</h3>
-                <p className="text-xs text-slate-500">Hackathon Pitch Slides & 90-Second Walkthrough</p>
+                <p className="text-xs text-slate-400">Hackathon Pitch Slides & 90-Second Walkthrough</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Interactive 90-Second Demo Bar */}
-          <div className="px-6 py-3 bg-indigo-50/70 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="px-6 py-2.5 bg-slate-50/80 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="text-xs font-bold text-indigo-950">90-Sec Demo Runner:</span>
+              <Sparkles className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="text-xs font-bold text-slate-800">90-Sec Demo:</span>
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto">
               <button
                 onClick={() => onRunDemoStep(1)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                   demoStep === 1
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 1. Clean State
               </button>
               <button
                 onClick={() => onRunDemoStep(2)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                   demoStep === 2
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 2. Trigger Anomaly
               </button>
               <button
                 onClick={() => onRunDemoStep(3)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                   demoStep === 3
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                3. Ask AI Guidance
+                3. Ask Guidance
               </button>
               <button
                 onClick={() => onRunDemoStep(4)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                   demoStep === 4
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-indigo-800 border border-indigo-200 hover:bg-indigo-100'
+                    ? 'bg-slate-900 text-white shadow-2xs font-bold'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 4. Confirm & Tidy
@@ -279,7 +279,7 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
           <div className="p-6 sm:p-8 flex-1 overflow-y-auto flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] uppercase font-bold text-indigo-600 tracking-wider bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                <span className="text-[10px] uppercase font-bold text-slate-600 tracking-wider bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200/80">
                   {current.tag}
                 </span>
                 <span className="text-xs font-semibold text-slate-400">
@@ -298,10 +298,10 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
               <button
                 onClick={() => setCurrentSlide((prev) => Math.max(0, prev - 1))}
                 disabled={currentSlide === 0}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
-                <span>Previous Slide</span>
+                <span>Previous</span>
               </button>
 
               <div className="flex items-center gap-1.5">
@@ -309,8 +309,8 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
                   <button
                     key={i}
                     onClick={() => setCurrentSlide(i)}
-                    className={`w-2.5 h-2.5 rounded-full transition-all ${
-                      i === currentSlide ? 'bg-indigo-600 w-6' : 'bg-slate-200 hover:bg-slate-300'
+                    className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
+                      i === currentSlide ? 'bg-slate-900 w-5' : 'bg-slate-200 hover:bg-slate-300'
                     }`}
                   />
                 ))}
@@ -319,9 +319,9 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
               <button
                 onClick={() => setCurrentSlide((prev) => Math.min(slides.length - 1, prev + 1))}
                 disabled={currentSlide === slides.length - 1}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-30 disabled:hover:bg-indigo-600 flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-slate-900 flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <span>Next Slide</span>
+                <span>Next</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

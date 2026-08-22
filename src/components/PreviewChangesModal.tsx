@@ -22,7 +22,7 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-2xs">
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -31,19 +31,19 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
           className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold">
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Pre-Action Impact & Diff Preview</h3>
-                <p className="text-xs text-slate-500">Inspect bounded changes before giving human approval</p>
+                <p className="text-xs text-slate-400">Inspect bounded changes before giving human approval</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -79,17 +79,17 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
             <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
               state.healthLevel === 'Unsafe'
                 ? 'bg-amber-50/80 border-amber-200'
-                : 'bg-blue-50/70 border-blue-100'
+                : 'bg-slate-50 border-slate-200/80'
             }`}>
               <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${
-                state.healthLevel === 'Unsafe' ? 'text-amber-700' : 'text-blue-600'
+                state.healthLevel === 'Unsafe' ? 'text-amber-700' : 'text-slate-800'
               }`} />
               <div>
                 <h4 className={`text-xs font-bold ${
-                  state.healthLevel === 'Unsafe' ? 'text-amber-950' : 'text-blue-950'
+                  state.healthLevel === 'Unsafe' ? 'text-amber-950' : 'text-slate-900'
                 }`}>{action.title}</h4>
                 <p className={`text-xs mt-0.5 ${
-                  state.healthLevel === 'Unsafe' ? 'text-amber-900/90' : 'text-blue-800/90'
+                  state.healthLevel === 'Unsafe' ? 'text-amber-900/90' : 'text-slate-600'
                 }`}>{action.summary}</p>
                 <div className="mt-2 font-mono text-[11px] bg-white text-slate-900 px-2.5 py-1 rounded border border-slate-200 inline-block select-all">
                   {action.command}
@@ -99,7 +99,7 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
 
             {/* Branch Movement Visualizer */}
             <div>
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                 <GitCommit className="w-3.5 h-3.5 text-slate-400" />
                 <span>Branch Pointer Trajectory</span>
               </h4>
@@ -132,16 +132,16 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
             {/* Affected Files & Diffs */}
             {state.workingTree.length > 0 && (
               <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
                   <span>Affected Files in Working Tree ({state.workingTree.length})</span>
                 </h4>
                 <div className="space-y-2.5">
                   {state.workingTree.map((file) => (
                     <div key={file.path} className="rounded-xl border border-slate-200 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2 bg-slate-100/70 border-b border-slate-200 text-xs">
+                      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs">
                         <span className="font-mono font-medium text-slate-800">{file.path}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 font-mono">
                           <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                             +{file.additions}
                           </span>
@@ -150,7 +150,7 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
                           </span>
                         </div>
                       </div>
-                      <div className="p-3 bg-slate-900 text-slate-100 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed">
+                      <div className="p-3 bg-slate-950 text-slate-100 font-mono text-[11px] overflow-x-auto whitespace-pre leading-relaxed">
                         {file.diffSnippet}
                       </div>
                     </div>
@@ -161,7 +161,7 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
 
             {/* Step-by-Step Sequence */}
             <div>
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
                 Atomic Execution Plan
               </h4>
               <div className="space-y-2">
@@ -170,7 +170,7 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
                     key={idx}
                     className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-start gap-2.5"
                   >
-                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5 font-mono">
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -201,10 +201,10 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50">
+          <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-100 bg-slate-50/60">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -214,10 +214,10 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
                 onClose();
                 onConfirmAction();
               }}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all cursor-pointer ${
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm flex items-center gap-2 transition-all cursor-pointer ${
                 state.healthLevel === 'Unsafe'
-                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+                  : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/10'
               }`}
             >
               <CheckCircle2 className="w-4 h-4" />
