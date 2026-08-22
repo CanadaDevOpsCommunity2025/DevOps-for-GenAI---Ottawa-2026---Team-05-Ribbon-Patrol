@@ -187,3 +187,107 @@ export function playPetChirpSound(): void {
     osc.stop(now + 0.22);
   } catch (_) {}
 }
+
+/**
+ * Play a low harmonic gentle purring / heart warmth chime.
+ */
+export function playPurrSound(): void {
+  if (!shouldPlaySound('pet')) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(220, now);
+    osc1.frequency.linearRampToValueAtTime(240, now + 0.2);
+    osc1.frequency.linearRampToValueAtTime(220, now + 0.4);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(440, now);
+    osc2.frequency.linearRampToValueAtTime(480, now + 0.2);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.45);
+    osc2.stop(now + 0.45);
+  } catch (_) {}
+}
+
+/**
+ * Play a cute bubbling / coffee sip energize sound effect.
+ */
+export function playCoffeeSlurpSound(): void {
+  if (isAudioMuted()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const notes = [350, 480, 620, 800];
+
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.05);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.3, now + i * 0.05 + 0.08);
+
+      gain.gain.setValueAtTime(0, now + i * 0.05);
+      gain.gain.linearRampToValueAtTime(0.1, now + i * 0.05 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.05 + 0.1);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + i * 0.05);
+      osc.stop(now + i * 0.05 + 0.1);
+    });
+  } catch (_) {}
+}
+
+/**
+ * Play a sparkling accessory equip chime.
+ */
+export function playAccessoryEquipSound(): void {
+  if (isAudioMuted()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const freqs = [659.25, 830.61, 987.77, 1318.51]; // E5, G#5, B5, E6
+
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.04);
+
+      gain.gain.setValueAtTime(0, now + i * 0.04);
+      gain.gain.linearRampToValueAtTime(0.09, now + i * 0.04 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.04 + 0.2);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + i * 0.04);
+      osc.stop(now + i * 0.04 + 0.2);
+    });
+  } catch (_) {}
+}
+

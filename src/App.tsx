@@ -320,6 +320,7 @@ export default function App() {
 
   // Handler for executing the approved safe action
   const handleExecuteAction = (action: RecommendedAction) => {
+    setPreviewAction(null);
     setExecutingActionId(action.id);
 
     setTimeout(() => {
