@@ -21,6 +21,7 @@ import {
   Dog,
 } from 'lucide-react';
 import { ChatMessage, RecommendedAction, RepositoryState, ChatRole, ModelTier } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatStreamProps {
   messages: ChatMessage[];
@@ -223,7 +224,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                     </div>
                   </div>
 
-                  <p className="whitespace-pre-line">{msg.text}</p>
+                  <MarkdownRenderer content={msg.text} isUser={msg.sender === 'user'} />
 
                   {/* Evidence summary bullet points */}
                   {msg.evidenceSummary && msg.evidenceSummary.evidencePoints?.length > 0 && (

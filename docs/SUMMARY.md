@@ -2,6 +2,7 @@
 
 ## Kubepet
 
+* [Project Overview & Hackathon Submission](PROJECT_OVERVIEW.md)
 * [Functional Specification Document: GitPet](README.md)
 * [Roadmap](kubepet/roadmap/README.md)
   * [Phase 1: Core API & state completeness](kubepet/roadmap/phase-1-core-api-and-state-completeness/README.md)
