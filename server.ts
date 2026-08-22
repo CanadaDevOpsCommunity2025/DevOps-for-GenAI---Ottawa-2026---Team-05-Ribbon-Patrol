@@ -676,6 +676,18 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     } else {
       upstream = null;
       upstreamUnavailable = true;
+
+      // No tracking upstream configured — the normal state for a freshly
+      // created local branch (e.g. `git checkout -b my-branch`) that was
+      // never pushed. Without this fallback, aheadCount stays 0 and
+      // genuinely unpushed commits are silently invisible to the health
+      // engine. Instead, count commits on HEAD unreachable from ANY
+      // remote-tracking branch, so "committed but not backed up anywhere"
+      // is still surfaced.
+      const unpushedRes = await runGitCommand(['rev-list', '--count', 'HEAD', '--not', '--remotes'], workspaceRoot);
+      if (unpushedRes.exitCode === 0 && unpushedRes.stdout.trim()) {
+        aheadCount = parseInt(unpushedRes.stdout.trim(), 10) || 0;
+      }
     }
   } else {
     upstream = null;
@@ -970,8 +982,12 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     healthLevel = 'Attention';
     primarySymptom = 'unpushed_work';
     symptomTitle = `${aheadCount} Unpushed Local Commits`;
-    symptomDescription = `You have ${aheadCount} local commit(s) ahead of ${upstream}.`;
-    operatorMeaning = 'Push commits to origin when ready for backup or team review.';
+    symptomDescription = upstream
+      ? `You have ${aheadCount} local commit(s) ahead of ${upstream}.`
+      : `You have ${aheadCount} local commit(s) not backed up to any remote — ${branchName} has no upstream branch configured.`;
+    operatorMeaning = upstream
+      ? 'Push commits to origin when ready for backup or team review.'
+      : `Set an upstream and push: git push -u origin ${branchName}`;
   } else if (workingTreeFiles.length > 0) {
     healthPercentage = 92;
     healthLevel = 'Healthy';
@@ -2133,7 +2149,31 @@ You help them check branch synchronization, warn them if they have uncommitted f
   // Vite middleware in dev mode
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // Vite can't hot-update non-module files (docs, images, lockfiles,
+        // etc.) so it falls back to a full page reload on any change to
+        // them — which wipes all React state (e.g. the Live Workspace
+        // toggle). Since Live Workspace scans this same repo's git state,
+        // routine repo activity (editing README, docs, screenshots) would
+        // otherwise reset the whole app mid-session. Excluding non-source
+        // paths keeps HMR scoped to files that actually affect the UI.
+        watch: {
+          ignored: [
+            '**/README.md',
+            '**/LICENSE',
+            '**/docs/**',
+            '**/*.png',
+            '**/*.jpg',
+            '**/*.jpeg',
+            '**/metadata.json',
+            '**/.git/**',
+            '**/tests/**',
+            '**/.antigravity/**',
+            '**/.vscode/**',
+          ],
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

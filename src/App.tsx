@@ -603,8 +603,10 @@ export default function App() {
   };
 
   // Live Workspace Status Scanner
-  const handleFetchLiveStatus = async (isInitialSwitch = false) => {
-    setLiveScanState((prev) => ({ ...prev, loading: true, error: null }));
+  const handleFetchLiveStatus = async (isInitialSwitch = false, silent = false) => {
+    if (!silent) {
+      setLiveScanState((prev) => ({ ...prev, loading: true, error: null }));
+    }
     try {
       const res = await fetch('/api/git/live-status');
       const data = await res.json();
@@ -615,17 +617,19 @@ export default function App() {
           error: 'Current workspace is not a Git repository.',
           lastRefreshed: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         });
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_live_unavail_${Date.now()}`,
-            sender: 'assistant',
-            role: selectedRole,
-            modelUsed: 'gemini-2.5-flash',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
-          },
-        ]);
+        if (!silent) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg_live_unavail_${Date.now()}`,
+              sender: 'assistant',
+              role: selectedRole,
+              modelUsed: 'gemini-2.5-flash',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
+            },
+          ]);
+        }
       } else if (data.success && data.state) {
         setRepoState(data.state);
         setLiveScanState({
@@ -719,6 +723,19 @@ export default function App() {
       ]);
     }
   };
+
+  // Auto-refresh Live Workspace while active, so uncommitted edits and new
+  // commits show up on their own instead of requiring a manual "Scan Live
+  // Repo" click. Silent polls skip the loading spinner and the connection
+  // chat message so they don't spam the UI every tick.
+  useEffect(() => {
+    if (!isLiveMode) return;
+    const interval = setInterval(() => {
+      handleFetchLiveStatus(false, true);
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLiveMode]);
 
   // Scenario selection
   const handleSelectScenario = (scenario: ScenarioPreset) => {
