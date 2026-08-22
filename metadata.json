@@ -1,0 +1,1 @@
+{"name":"GitPet","description":"An ambient repository management companion that visualizes Git health through expressive pet states, evidence-based AI guidance, and human-approved safe actions.","requestFramePermissions":["microphone"],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}
