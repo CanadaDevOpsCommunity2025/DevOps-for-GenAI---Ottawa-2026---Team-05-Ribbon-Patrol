@@ -501,8 +501,8 @@ app.get('/api/health', (req, res) => {
     geminiAvailable: !!process.env.GEMINI_API_KEY,
     writesEnabled: writesEnabled(),
     workspaceRoot: workspaceRootPath(),
-    geminiModelPrimary: 'gemini-3.6-flash',
-    geminiModelPro: 'gemini-3.6-flash',
+    geminiModelPrimary: MODEL_CHAINS.general[0],
+    geminiModelPro: MODEL_CHAINS.deep[0],
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
     memoryUsageMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
@@ -529,6 +529,58 @@ app.get('/api/audit-logs', (req, res) => {
     events: auditLogBuffer.slice(0, limit),
   });
 });
+
+// ---------------------------------------------------------------------------
+// Gemini model routing
+// ---------------------------------------------------------------------------
+//
+// Model availability varies by API key. gemini-2.5-* returns 404 ("no longer
+// available to new users") on recently issued keys, and the pro tiers return
+// 429 on the free plan. Each tier lists several models in preference order; a
+// 404 or 429 advances to the next, so the deterministic rule engine is a last
+// resort rather than the first failure mode.
+const MODEL_CHAINS: Record<string, string[]> = {
+  fast: ['gemini-3.1-flash-lite', 'gemini-3.6-flash', 'gemini-flash-latest'],
+  general: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'],
+  deep: ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-flash-latest'],
+};
+
+function modelChainForTier(tier: string): string[] {
+  return MODEL_CHAINS[tier] ?? MODEL_CHAINS.general;
+}
+
+/** True when the failure means "try a different model" rather than "give up". */
+function shouldTryNextModel(error: any): boolean {
+  const detail = error?.message || String(error ?? '');
+  return /\b404\b|NOT_FOUND|no longer available|\b429\b|RESOURCE_EXHAUSTED|quota|\b503\b|UNAVAILABLE|high demand|overloaded/i.test(
+    detail
+  );
+}
+
+/**
+ * Calls generateContent against the first model in `chain` that is available
+ * to this key, returning which one answered.
+ */
+async function generateWithFallback(
+  ai: GoogleGenAI,
+  chain: string[],
+  request: Record<string, unknown>
+): Promise<{ response: any; model: string }> {
+  let lastError: any = null;
+
+  for (const candidate of chain) {
+    try {
+      const response = await ai.models.generateContent({ ...request, model: candidate } as any);
+      return { response, model: candidate };
+    } catch (error: any) {
+      lastError = error;
+      if (!shouldTryNextModel(error)) throw error;
+      console.warn(`Model ${candidate} unavailable (${String(error?.message).slice(0, 90)}), trying next.`);
+    }
+  }
+
+  throw lastError ?? new Error('No Gemini model available');
+}
 
 // Helper: Safely execute a read-only git command using argument-based execFile
 function runGitCommand(
@@ -1288,23 +1340,16 @@ async function handleChatRequest(req: express.Request, res: express.Response) {
     const effectiveTier = modelTier || tier || 'general';
     let quotaExhausted = false;
 
-    // Model selection routing (Official Google Gemini models)
-    let modelName = 'gemini-3.6-flash';
-    if (
-      effectiveTier === 'deep' ||
-      userPrompt.toLowerCase().includes('complex') ||
-      userPrompt.toLowerCase().includes('rebase conflict') ||
-      userPrompt.toLowerCase().includes('cherry-pick')
-    ) {
-      modelName = 'gemini-3.6-flash'; // keep pro tier unchanged for now
-    } else if (
-      effectiveTier === 'fast' ||
-      userPrompt.toLowerCase().includes('quick') ||
-      userPrompt.toLowerCase().includes('fast') ||
-      userPrompt.toLowerCase().includes('one liner')
-    ) {
-      modelName = 'gemini-3.6-flash';
+    // Model selection: choose a tier, then try that tier's chain in order.
+    const loweredPrompt = userPrompt.toLowerCase();
+    let routedTier = effectiveTier;
+    if (effectiveTier === 'deep' || /complex|rebase conflict|cherry-pick/.test(loweredPrompt)) {
+      routedTier = 'deep';
+    } else if (effectiveTier === 'fast' || /quick|fast|one liner/.test(loweredPrompt)) {
+      routedTier = 'fast';
     }
+    const modelChain = modelChainForTier(routedTier);
+    let modelName = modelChain[0];
 
     const ai = getGenAI();
     const systemInstruction = ROLE_SYSTEM_INSTRUCTIONS[role] || ROLE_SYSTEM_INSTRUCTIONS.byte_mascot;
@@ -1363,13 +1408,11 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
           });
         }
 
-        const response = await ai.models.generateContent({
-          model: modelName,
+        const { response, model: usedModel } = await generateWithFallback(ai, modelChain, {
           contents,
-          config: {
-            systemInstruction,
-          },
+          config: { systemInstruction },
         });
+        modelName = usedModel;
 
         const textOutput = response.text || '';
         // The rule engine is a fallback for when the model is unavailable, not
@@ -1467,7 +1510,8 @@ app.post('/api/gitpet/analyze', async (req, res) => {
     }
 
     const ai = getGenAI();
-    let modelName = tier === 'deep' ? 'gemini-3.6-flash' : 'gemini-3.6-flash';
+    const modelChain = modelChainForTier(tier === 'deep' ? 'deep' : tier === 'fast' ? 'fast' : 'general');
+    let modelName = modelChain[0];
 
     if (ai) {
       try {
@@ -1496,8 +1540,7 @@ Respond in valid JSON with:
 3. "evidencePoints": string array of 2-3 evidence citations.
 `;
 
-        const response = await ai.models.generateContent({
-          model: modelName,
+        const { response, model: usedModel } = await generateWithFallback(ai, modelChain, {
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -1552,6 +1595,8 @@ Respond in valid JSON with:
             },
           },
         });
+
+        modelName = usedModel;
 
         if (response.text) {
           const parsed = JSON.parse(response.text.trim());

@@ -276,8 +276,10 @@ function contextualFindings(
     });
   }
 
-  // Pulling or switching with a dirty tree and no stash in the same chain.
-  if ((has('pull') || has('merge')) && workingTree.length > 0 && !stashSave) {
+  // Pulling or switching with a dirty tree and nothing preserving it.
+  // `--autostash` stashes and restores automatically, so it counts as safe.
+  const autostash = commands.some((c) => c.args.includes('--autostash'));
+  if ((has('pull') || has('merge')) && workingTree.length > 0 && !stashSave && !autostash) {
     findings.push({
       severity: 'warn',
       code: 'pull-dirty-tree',

@@ -142,3 +142,22 @@ describe('diverged branches', () => {
     expect(report.verdict).toBe('allow');
   });
 });
+
+describe('autostash', () => {
+  const dirty = {
+    workingTree: [{ path: 'config.ts', status: 'modified' }],
+    stashes: [],
+    currentBranch: { aheadCount: 0, behindCount: 3, isDetached: false, upstream: 'origin/main' },
+  };
+
+  it('does not warn about a dirty tree when --autostash preserves it', () => {
+    const report = evaluateCommand('git pull --rebase --autostash origin main', dirty);
+    expect(report.findings.some((f) => f.code === 'pull-dirty-tree')).toBe(false);
+    expect(report.verdict).toBe('allow');
+  });
+
+  it('still warns when nothing preserves the working tree', () => {
+    const report = evaluateCommand('git pull --rebase origin main', dirty);
+    expect(report.findings.some((f) => f.code === 'pull-dirty-tree')).toBe(true);
+  });
+});
