@@ -67,6 +67,47 @@ const SHELL_METACHARACTERS = /[;|`$><]|\|\||\$\(/;
 // Parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Splits a chained command line on `&&` and newlines, ignoring separators that
+ * fall inside quotes. Splitting naively would break a commit or stash message
+ * that legitimately contains "&&".
+ */
+export function splitChain(input: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (quote) {
+      if (char === quote) quote = null;
+      current += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === '&' && input[i + 1] === '&') {
+      segments.push(current);
+      current = '';
+      i++;
+      continue;
+    }
+    if (char === '\n') {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  segments.push(current);
+
+  return segments.map((s) => s.trim()).filter(Boolean);
+}
+
 /** Splits a command line into argv, honouring single and double quotes. */
 export function tokenize(input: string): string[] {
   const tokens: string[] = [];
@@ -301,10 +342,7 @@ export function evaluateCommand(
   const findings: SafetyFinding[] = [];
   const commands: ParsedGitCommand[] = [];
 
-  const segments = (commandLine ?? '')
-    .split(/&&|\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const segments = splitChain(commandLine ?? '');
 
   if (segments.length === 0) {
     return {

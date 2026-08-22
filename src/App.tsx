@@ -206,10 +206,16 @@ export default function App() {
   const handleSendMessage = async (
     userPrompt: string,
     roleOverride?: ChatRole,
-    tierOverride?: ModelTier
+    tierOverride?: ModelTier,
+    // Callers that have just queued a state change must pass the new state
+    // explicitly: `repoState` below is captured from the render this function
+    // was created in, so a prompt fired immediately after setRepoState would
+    // otherwise describe the previous repository.
+    stateOverride?: RepositoryState
   ) => {
     const activeRole = roleOverride || selectedRole;
     const activeTier = tierOverride || selectedTier;
+    const activeState = stateOverride ?? repoState;
 
     const userMsg: ChatMessage = {
       id: `msg_user_${Date.now()}`,
@@ -238,7 +244,7 @@ export default function App() {
           role: activeRole,
           modelTier: activeTier,
           history,
-          state: repoState,
+          state: activeState,
         }),
       });
 
@@ -258,12 +264,12 @@ export default function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: data.reply,
           evidenceSummary: {
-            symptom: repoState.symptomTitle,
-            healthLevel: repoState.healthLevel,
+            symptom: activeState.symptomTitle,
+            healthLevel: activeState.healthLevel,
             evidencePoints: [
-              `Branch: ${repoState.currentBranch.name}`,
-              `Ahead: ${repoState.currentBranch.aheadCount} | Behind: ${repoState.currentBranch.behindCount}`,
-              `Uncommitted files: ${repoState.workingTree.length}`,
+              `Branch: ${activeState.currentBranch.name}`,
+              `Ahead: ${activeState.currentBranch.aheadCount} | Behind: ${activeState.currentBranch.behindCount}`,
+              `Uncommitted files: ${activeState.workingTree.length}`,
             ],
           },
           recommendedAction: recAction,
@@ -274,7 +280,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            state: repoState,
+            state: activeState,
             userMessage: userPrompt,
           }),
         });
@@ -289,8 +295,8 @@ export default function App() {
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             text: analyzeData.explanation,
             evidenceSummary: {
-              symptom: repoState.symptomTitle,
-              healthLevel: repoState.healthLevel,
+              symptom: activeState.symptomTitle,
+              healthLevel: activeState.healthLevel,
               evidencePoints: analyzeData.evidencePoints || [],
             },
             recommendedAction: analyzeData.recommendedAction,
@@ -308,10 +314,10 @@ export default function App() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: `Based on current repository signals, branch **${repoState.currentBranch.name}** has ${repoState.currentBranch.behindCount} commits behind upstream with ${repoState.workingTree.length} uncommitted files.\n\nRecommended: Run \`git stash push -m "gitpet: save"\` before pulling.`,
         evidenceSummary: {
-          symptom: repoState.symptomTitle,
-          healthLevel: repoState.healthLevel,
+          symptom: activeState.symptomTitle,
+          healthLevel: activeState.healthLevel,
           evidencePoints: [
-            `Branch: ${repoState.currentBranch.name}`,
+            `Branch: ${activeState.currentBranch.name}`,
             `Behind: ${repoState.currentBranch.behindCount} commits`,
             `Working tree: ${repoState.workingTree.length} files`,
           ],
@@ -324,9 +330,85 @@ export default function App() {
   };
 
   // Handler for executing the approved safe action
-  const handleExecuteAction = (action: RecommendedAction) => {
+  const handleExecuteAction = async (action: RecommendedAction) => {
     setPreviewAction(null);
     setExecutingActionId(action.id);
+
+    // Live workspace: run the command for real and re-read the repository.
+    // Sandbox keeps the simulated transition below, so demo scenarios still
+    // work without touching anything on disk.
+    if (isLiveMode) {
+      const previousHealth = repoState.healthPercentage;
+      try {
+        const res = await fetch('/api/git/execute-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: action.command }),
+        });
+        const data = await res.json();
+
+        if (data.state) setRepoState(data.state);
+
+        if (data.success) {
+          setAuditHistory((prev) => [
+            {
+              id: `audit_${Date.now()}`,
+              command: action.command,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              description: action.title,
+            },
+            ...prev,
+          ]);
+          try {
+            confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
+          } catch {
+            // Confetti is decorative; never let it break the result path.
+          }
+        }
+
+        // Echo real stdout/stderr so the outcome is verifiable, not asserted.
+        const transcript = (data.steps || [])
+          .filter((step: any) => !step.skipped)
+          .map((step: any) => `$ ${step.command}\n${(step.stdout || step.stderr || '(no output)').trim()}`)
+          .join('\n\n');
+
+        setMessages((prev) => [
+          ...prev.map((m) =>
+            m.recommendedAction?.id === action.id
+              ? {
+                  ...m,
+                  executed: data.success,
+                  executionResult: {
+                    success: data.success,
+                    message: data.message,
+                    previousHealth,
+                    newHealth: data.state?.healthPercentage ?? previousHealth,
+                  },
+                }
+              : m
+          ),
+          {
+            id: `msg_exec_${Date.now()}`,
+            sender: 'system' as const,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: transcript || data.message || 'No output.',
+          },
+        ]);
+      } catch (err) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `msg_exec_err_${Date.now()}`,
+            sender: 'system' as const,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: 'Could not reach the execution endpoint.',
+          },
+        ]);
+      } finally {
+        setExecutingActionId(null);
+      }
+      return;
+    }
 
     setTimeout(() => {
       const previousHealth = repoState.healthPercentage;
@@ -590,7 +672,7 @@ export default function App() {
         id: `scenario_switch_${Date.now()}`,
         sender: 'assistant',
         role: selectedRole,
-        modelUsed: 'gemini-3.5-flash',
+        modelUsed: 'scenario',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: `Loaded scenario: **${scenario.title}**.\n\n${scenario.description}`,
         evidenceSummary: {
@@ -606,7 +688,7 @@ export default function App() {
     ]);
 
     setTimeout(() => {
-      handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier);
+      handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier, scenario.state);
     }, 300);
   };
 
