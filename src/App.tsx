@@ -49,6 +49,7 @@ export default function App() {
   // Live Workspace Scanner State
   const [isLiveMode, setIsLiveMode] = useState<boolean>(false);
   const [liveScanState, setLiveScanState] = useState<LiveScanState>({ loading: false });
+  const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
   const [cachedSandboxState, setCachedSandboxState] = useState<RepositoryState>(MVP_SCENARIO.state);
 
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
@@ -487,6 +488,7 @@ export default function App() {
         ]);
       } else if (data.success && data.state) {
         setRepoState(data.state);
+        setActiveLiveBranch(data.state.currentBranch.name);
         setLiveScanState({
           loading: false,
           unavailable: false,
@@ -567,6 +569,10 @@ export default function App() {
         },
       ]);
     }
+  };
+
+  const handleSelectLiveBranch = (branch: string) => {
+    setActiveLiveBranch(branch);
   };
 
   // Scenario selection
@@ -914,6 +920,9 @@ export default function App() {
           onToggleLiveMode={handleToggleLiveMode}
           onRefreshLive={handleFetchLiveStatus}
           liveScanState={liveScanState}
+          activeLiveBranch={activeLiveBranch}
+          isLiveLoading={liveScanState.loading}
+          onSelectLiveBranch={handleSelectLiveBranch}
         />
 
         {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}
