@@ -3,6 +3,7 @@
 ## GitPet Compliance & Architecture Documentation
 
 * [Participant Guidelines & Evidence Matrix (P-01 to P-15)](GUIDELINES_COMPLIANCE.md)
+* [Submission Checklist Summary (Items 1 to 20)](CHECKLIST.md)
 * [Project Overview & Hackathon Submission](PROJECT_OVERVIEW.md)
 * [Functional Specification Document: GitPet](README.md)
 * [Architecture & System Design](architecture/ARCHITECTURE.md)
