@@ -647,7 +647,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
 
   // 6. Recent commit history
   const historyRes = await runGitCommand(
-    ['log', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+    ['log', '-n', '12', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
     workspaceRoot
   );
   const commitHistory: Array<{
@@ -656,6 +656,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     message: string;
     author: string;
     timestamp: string;
+    parents?: string[];
+    branchRef?: string;
   }> = [];
 
   let lastCommitMessage = 'Initial commit';
@@ -666,12 +668,16 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     for (let i = 0; i < lines.length; i++) {
       const parts = lines[i].split('|');
       if (parts.length >= 5) {
+        const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
+        const branchRef = parts[6] ? parts[6].trim() : undefined;
         const c = {
           hash: parts[0],
           shortHash: parts[1],
           message: parts[2],
           author: parts[3],
           timestamp: parts[4],
+          parents,
+          branchRef,
         };
         commitHistory.push(c);
         if (i === 0) {
@@ -691,6 +697,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     author: string;
     timestamp: string;
     isLocal: boolean;
+    parents?: string[];
+    branchRef?: string;
   }> = [];
 
   const remoteCommitsBehind: Array<{
@@ -700,11 +708,13 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     author: string;
     timestamp: string;
     isRemote: boolean;
+    parents?: string[];
+    branchRef?: string;
   }> = [];
 
   if (upstream && aheadCount > 0) {
     const aheadRes = await runGitCommand(
-      ['log', '@{u}..HEAD', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+      ['log', '@{u}..HEAD', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
       workspaceRoot
     );
     if (aheadRes.exitCode === 0 && aheadRes.stdout.trim()) {
@@ -712,6 +722,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
       for (const line of lines) {
         const parts = line.split('|');
         if (parts.length >= 5) {
+          const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
+          const branchRef = parts[6] ? parts[6].trim() : undefined;
           localCommitsAhead.push({
             hash: parts[0],
             shortHash: parts[1],
@@ -719,6 +731,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
             author: parts[3],
             timestamp: parts[4],
             isLocal: true,
+            parents,
+            branchRef,
           });
         }
       }
@@ -727,7 +741,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
 
   if (upstream && behindCount > 0) {
     const behindRes = await runGitCommand(
-      ['log', 'HEAD..@{u}', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr'],
+      ['log', 'HEAD..@{u}', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
       workspaceRoot
     );
     if (behindRes.exitCode === 0 && behindRes.stdout.trim()) {
@@ -735,6 +749,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
       for (const line of lines) {
         const parts = line.split('|');
         if (parts.length >= 5) {
+          const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
+          const branchRef = parts[6] ? parts[6].trim() : undefined;
           remoteCommitsBehind.push({
             hash: parts[0],
             shortHash: parts[1],
@@ -742,6 +758,8 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
             author: parts[3],
             timestamp: parts[4],
             isRemote: true,
+            parents,
+            branchRef,
           });
         }
       }

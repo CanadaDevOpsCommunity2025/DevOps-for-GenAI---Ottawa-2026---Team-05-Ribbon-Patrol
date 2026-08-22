@@ -27,6 +27,8 @@ interface TopBarProps {
   onOpenPitchDeck: () => void;
   onOpenImageStudio: () => void;
   onOpenVoiceModal: () => void;
+  onStartDemo?: () => void;
+  isDemoActive?: boolean;
   isDrawerOpen: boolean;
   isLiveMode?: boolean;
   liveScanState?: LiveScanState;
@@ -41,6 +43,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenPitchDeck,
   onOpenImageStudio,
   onOpenVoiceModal,
+  onStartDemo,
+  isDemoActive = false,
   isDrawerOpen,
   isLiveMode = false,
   liveScanState,
@@ -249,6 +253,23 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
             )}
           </div>
+
+          {/* 90-Second Guided Demo Quick Launch */}
+          {onStartDemo && (
+            <button
+              id="topbar-launch-demo-btn"
+              onClick={onStartDemo}
+              className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-all shadow-2xs cursor-pointer ${
+                isDemoActive
+                  ? 'bg-indigo-600 text-white border-indigo-500 ring-2 ring-indigo-400/30'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-200'
+              }`}
+              title="Launch 90-Second Guided Demo"
+            >
+              <span>🚀</span>
+              <span className="hidden sm:inline">90s Demo</span>
+            </button>
+          )}
 
           {/* Avatar Studio Action */}
           <button

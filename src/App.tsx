@@ -9,6 +9,7 @@ import { PreviewChangesModal } from './components/PreviewChangesModal';
 import { PitchDeckModal } from './components/PitchDeckModal';
 import { ImageStudioModal } from './components/ImageStudioModal';
 import { LiveVoiceModal } from './components/LiveVoiceModal';
+import { GuidedDemoBar } from './components/GuidedDemoBar';
 import {
   MVP_SCENARIO,
   ALL_SCENARIOS,
@@ -83,7 +84,14 @@ export default function App() {
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  
+  // 90-Second Guided Demo State
+  const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
   const [demoStep, setDemoStep] = useState<number>(1);
+  const [isDemoPaused, setIsDemoPaused] = useState<boolean>(false);
+  const [demoElapsedSeconds, setDemoElapsedSeconds] = useState<number>(0);
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
+  
   const [auditHistory, setAuditHistory] = useState<
     { id: string; command: string; timestamp: string; description: string }[]
   >([]);
@@ -633,49 +641,191 @@ export default function App() {
     );
   };
 
+  // 90-Second Guided Demo Auto-Advance Timer Loop
+  useEffect(() => {
+    if (!isDemoActive || isDemoPaused) return;
+
+    const timer = setInterval(() => {
+      setDemoElapsedSeconds((prev) => prev + 1);
+
+      setAutoAdvanceCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          // Auto-advance to next step
+          if (demoStep === 1) {
+            handleRunDemoStep(2);
+            return 16;
+          } else if (demoStep === 2) {
+            handleRunDemoStep(3);
+            return 18;
+          } else if (demoStep === 3) {
+            handleRunDemoStep(4);
+            return null; // Step 4 requires explicit preview confirmation
+          }
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isDemoActive, isDemoPaused, demoStep]);
+
   const handleResetToClean = () => {
     setRepoState(CLEAN_HEALTHY_SCENARIO.state);
     setActiveScenarioId(CLEAN_HEALTHY_SCENARIO.id);
   };
 
-  // 90-Second Demo Step Flow
+  const handleStartDemo = () => {
+    setIsDemoActive(true);
+    setIsDemoPaused(false);
+    setDemoElapsedSeconds(0);
+    handleRunDemoStep(1);
+  };
+
   const handleRunDemoStep = (stepNumber: number) => {
+    setIsDemoActive(true);
     setDemoStep(stepNumber);
+
+    const demoAction: RecommendedAction = {
+      id: 'act_initial_mvp',
+      title: 'Stash Local Changes, Pull Upstream & Restore Stash',
+      summary:
+        'Preserve 2 dirty files in stash, fast-forward pull 3 commits from origin, then cleanly restore your edits.',
+      command:
+        'git stash push -m "gitpet: preserve cart edits before pull" && git pull origin feature/cart && git stash pop',
+      confidence: 'High',
+      confidenceScore: 98,
+      riskLevel: 'Safe',
+      expectedResult:
+        'Branch is synchronized with upstream and your local edits to CartDrawer.tsx and pricingService.ts are preserved.',
+      reversalStep:
+        'git stash (stash index is kept until verified; or git reset --keep HEAD@{1})',
+      evidence: [
+        'Remote branch has 3 newer commits from teammates (Sarah Chen & Marcus Vance)',
+        'Working tree has 2 uncommitted modified files',
+        'Stashing eliminates potential checkout/pull overwrites',
+      ],
+      affectedFiles: [
+        'src/components/cart/CartDrawer.tsx',
+        'src/services/pricingService.ts',
+      ],
+      steps: [
+        {
+          label: '1. Stash uncommitted changes',
+          command: 'git stash push -m "gitpet: preserve work"',
+          details: 'Saves CartDrawer.tsx and pricingService.ts into local stash stack.',
+        },
+        {
+          label: '2. Pull remote commits',
+          command: 'git pull origin feature/cart',
+          details: 'Synchronizes 3 remote commits from origin/feature/cart.',
+        },
+        {
+          label: '3. Pop stashed work',
+          command: 'git stash pop',
+          details: 'Restores your active work cleanly onto the updated branch.',
+        },
+      ],
+    };
+
     if (stepNumber === 1) {
       setRepoState(CLEAN_HEALTHY_SCENARIO.state);
       setActiveScenarioId(CLEAN_HEALTHY_SCENARIO.id);
+      setIsDrawerOpen(false);
+      setPreviewAction(null);
+      setAutoAdvanceCountdown(12);
       setMessages([
         {
-          id: 'demo_clean_msg',
+          id: `demo_clean_msg_${Date.now()}`,
           sender: 'assistant',
           role: 'byte_mascot',
+          modelUsed: 'gemini-3.5-flash',
           timestamp: 'Just now',
-          text: 'Repository is pristine! Branch **main** is in sync with upstream origin/main. Tail wagging happily.',
+          text: '🟢 **Pristine Repository**: Branch **main** is 100% synchronized with upstream origin/main with a completely clean working tree.\n\nNotice how Byte is completely relaxed, tail is wagging happily, and health is 100%.',
+          evidenceSummary: {
+            symptom: 'Synchronized & Pristine',
+            healthLevel: 'Healthy',
+            evidencePoints: [
+              '0 commits ahead / 0 commits behind origin/main',
+              '0 uncommitted files in working tree',
+              'Ready for feature branch development',
+            ],
+          },
         },
       ]);
     } else if (stepNumber === 2) {
       setRepoState(MVP_SCENARIO.state);
       setActiveScenarioId(MVP_SCENARIO.id);
+      setIsDrawerOpen(false);
+      setPreviewAction(null);
+      setAutoAdvanceCountdown(16);
       setMessages((prev) => [
         ...prev,
         {
           id: `demo_anomaly_${Date.now()}`,
           sender: 'system',
           timestamp: 'Just now',
-          text: '⚠️ Anomaly Injected: Remote branch gained 3 commits. Working directory accumulated 2 dirty files. Pet visual shifted to pulling on leash with heavy backpack!',
+          text: '⚠️ **Anomaly Injected**: Upstream remote branch **feature/cart** gained 3 new commits from teammates while 2 uncommitted local edits were modified in your working tree.\n\nNotice how Byte immediately reflects this: posture changes to pulling on leash with an overfilled backpack, health drops to 68% Attention level!',
         },
       ]);
     } else if (stepNumber === 3) {
-      handleSendMessage('Status report! What needs attention?', selectedRole, selectedTier);
+      setIsDrawerOpen(false);
+      setPreviewAction(null);
+      setAutoAdvanceCountdown(18);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `demo_report_${Date.now()}`,
+          sender: 'assistant',
+          role: 'byte_mascot',
+          modelUsed: 'gemini-3.5-flash',
+          timestamp: 'Just now',
+          text: `I noticed **${MVP_SCENARIO.state.currentBranch.name}** is **3 commits behind** ${MVP_SCENARIO.state.currentBranch.upstream} while you have **2 uncommitted files** in your working directory. Stashing your edits before pulling avoids mixing unfinished work with upstream changes and eliminates merge accident risk.`,
+          evidenceSummary: {
+            symptom: 'Behind remote with local edits',
+            healthLevel: 'Attention',
+            evidencePoints: [
+              'feature/cart is 3 commits behind origin/feature/cart',
+              '2 uncommitted modified files in working directory (CartDrawer.tsx, pricingService.ts)',
+              'Safe action: Stash local changes, pull upstream, then restore stash',
+            ],
+          },
+          recommendedAction: demoAction,
+        },
+      ]);
     } else if (stepNumber === 4) {
-      const lastMsgWithAction = [...messages].reverse().find((m) => m.recommendedAction && !m.executed);
-      if (lastMsgWithAction?.recommendedAction) {
-        handleExecuteAction(lastMsgWithAction.recommendedAction);
-      } else if (messages[0]?.recommendedAction) {
-        handleExecuteAction(messages[0].recommendedAction);
-      }
+      setAutoAdvanceCountdown(null);
+      // Automatically open diff preview modal so user can inspect and explicitly confirm
+      setPreviewAction(demoAction);
     }
   };
+
+  const handleNextDemoStep = () => {
+    if (demoStep < 4) {
+      handleRunDemoStep(demoStep + 1);
+    }
+  };
+
+  const handleToggleDemoPause = () => {
+    setIsDemoPaused((prev) => !prev);
+  };
+
+  const handleRestartDemo = () => {
+    setDemoElapsedSeconds(0);
+    setIsDemoPaused(false);
+    handleRunDemoStep(1);
+  };
+
+  const handleExitDemo = () => {
+    setIsDemoActive(false);
+    setIsDemoPaused(false);
+    setAutoAdvanceCountdown(null);
+  };
+
+  const isMvpActionExecuted = messages.some(
+    (m) => m.recommendedAction?.id === 'act_initial_mvp' && m.executed
+  );
 
   return (
     <div
@@ -696,6 +846,8 @@ export default function App() {
         onOpenPitchDeck={() => setIsPitchDeckOpen(true)}
         onOpenImageStudio={() => setIsImageStudioOpen(true)}
         onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
+        onStartDemo={handleStartDemo}
+        isDemoActive={isDemoActive}
         isDrawerOpen={isDrawerOpen}
         isLiveMode={isLiveMode}
         liveScanState={liveScanState}
@@ -704,6 +856,30 @@ export default function App() {
 
       {/* Main Layout Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-5 space-y-4">
+        {/* 🚀 90-Second Guided Demo Bar on Main Canvas */}
+        <GuidedDemoBar
+          isDemoActive={isDemoActive}
+          demoStep={demoStep}
+          isDemoPaused={isDemoPaused}
+          elapsedSeconds={demoElapsedSeconds}
+          totalDurationSeconds={90}
+          autoAdvanceCountdown={autoAdvanceCountdown}
+          onStartDemo={handleStartDemo}
+          onNextStep={handleNextDemoStep}
+          onTogglePause={handleToggleDemoPause}
+          onRestartDemo={handleRestartDemo}
+          onExitDemo={handleExitDemo}
+          onJumpToStep={(step) => handleRunDemoStep(step)}
+          onOpenPreview={() => {
+            const lastWithAction = [...messages].reverse().find((m) => m.recommendedAction && !m.executed);
+            if (lastWithAction?.recommendedAction) {
+              setPreviewAction(lastWithAction.recommendedAction);
+            }
+          }}
+          isActionExecuted={isMvpActionExecuted}
+          isPreviewOpen={!!previewAction}
+        />
+
         {/* Scenario Switcher & Anomaly Sandbox Bar */}
         <ScenarioSwitcher
           scenarios={ALL_SCENARIOS}

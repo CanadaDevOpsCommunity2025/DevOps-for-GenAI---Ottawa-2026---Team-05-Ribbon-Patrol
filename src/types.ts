@@ -25,6 +25,90 @@ export interface CommitInfo {
   timestamp: string;
   isRemote?: boolean;
   isLocal?: boolean;
+  parents?: string[];
+  branchRef?: string;
+  isHead?: boolean;
+}
+
+export type DagNodeRole =
+  | 'head'
+  | 'upstream_head'
+  | 'local_ahead'
+  | 'remote_behind'
+  | 'merge_base'
+  | 'fork_point'
+  | 'detached'
+  | 'conflicted'
+  | 'hazard'
+  | 'sync_clean'
+  | 'collapsed_run';
+
+export interface DagCommitNode {
+  id: string;
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  timestamp: string;
+  laneIndex: number;
+  laneName: string;
+  role: DagNodeRole;
+  isHead: boolean;
+  isUpstreamHead: boolean;
+  isLocalAhead: boolean;
+  isRemoteBehind: boolean;
+  isMergeBase: boolean;
+  isForkPoint: boolean;
+  isDetached: boolean;
+  isConflicted?: boolean;
+  isHazard?: boolean;
+  parents: string[];
+  children: string[];
+  x: number;
+  y: number;
+  isCollapsedGroup?: boolean;
+  collapsedCount?: number;
+  collapsedCommitIds?: string[];
+  tags?: string[];
+}
+
+export interface DagEdge {
+  id: string;
+  fromId: string;
+  toId: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  isDivergent: boolean;
+  isMerge: boolean;
+  isDirect: boolean;
+  isHazard?: boolean;
+  isConflicted?: boolean;
+}
+
+export interface DagLane {
+  index: number;
+  name: string;
+  shortName: string;
+  color: string;
+  isCurrent: boolean;
+  isUpstream: boolean;
+  x: number;
+}
+
+export interface DagGraph {
+  nodes: DagCommitNode[];
+  edges: DagEdge[];
+  lanes: DagLane[];
+  width: number;
+  height: number;
+  headNodeId?: string;
+  upstreamNodeId?: string;
+  mergeBaseNodeId?: string;
+  hasIncompleteHistory?: boolean;
+  incompleteHistoryReason?: string;
+  collapsedGroupCount: number;
 }
 
 export interface StashItem {
