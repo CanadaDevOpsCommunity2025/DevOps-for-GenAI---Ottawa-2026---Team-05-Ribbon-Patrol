@@ -32,7 +32,7 @@ graph TD
     end
 
     subgraph TB4 [TRUST BOUNDARY 4: GEMINI CLOUD AI]
-        Cloud["<b>Gemini Cloud AI</b><br/>- Gemini 2.5 Flash / Gemini 2.5 Pro<br/>- Gemini 2.0 Flash Multimodal Live<br/>- Imagen 3 Sprite Generation Studio<br/>- Zero Customer Data Retention"]:::cloud
+        Cloud["<b>Gemini Cloud AI</b><br/>- Gemini 3.6 Flash / Gemini 3.6 Pro<br/>- Gemini 2.0 Flash Multimodal Live<br/>- Imagen 3 Sprite Generation Studio<br/>- Zero Customer Data Retention"]:::cloud
     end
 
     Client -->|"HTTP (REST) / WebSocket (JSON & Binary PCM)"| Backend

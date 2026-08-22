@@ -31,7 +31,7 @@ graph LR
     Title --> Fallback
 
     %% Live details
-    Live --> L1["Real-time Gemini 2.5 Flash/Pro APIs"]
+    Live --> L1["Real-time Gemini 3.6 Flash/Pro APIs"]
     Live --> L2["Gemini Imagen 3 Avatar Studio"]
     Live --> L3["Live Workspace Git CLI Scanning"]
     Live --> L4["Express API & Telemetry Ring"]
@@ -51,7 +51,7 @@ graph LR
 ## 3. Detailed Component Breakdown
 
 ### 3.1 Live AI Services
-- **Gemini Chat Engine (`/api/chat` & `/api/ai/chat`):** Live calls to `@google/genai` using `gemini-2.5-flash` or `gemini-2.5-pro`. Dynamically streams structured JSON containing evidence citations, confidence ratings, and reversal commands.
+- **Gemini Chat Engine (`/api/chat` & `/api/ai/chat`):** Live calls to `@google/genai` using `gemini-3.5-flash` or `gemini-3.5-pro`. Dynamically streams structured JSON containing evidence citations, confidence ratings, and reversal commands.
 - **Imagen 3 Avatar Studio (`/api/imagen/generate`):** Live calls to `imagen-3.0-generate-002` to synthesize custom mascot skins based on developer prompts. Previews are isolated until approved.
 - **Live Voice & Multimodal Audio:** Utilizes browser Web Speech API & WebSocket bridge for real-time natural language interaction.
 

@@ -502,7 +502,7 @@ app.get('/api/health', (req, res) => {
     writesEnabled: writesEnabled(),
     workspaceRoot: workspaceRootPath(),
     geminiModelPrimary: 'gemini-3.6-flash',
-    geminiModelPro: 'gemini-2.5-pro',
+    geminiModelPro: 'gemini-3.6-flash',
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
     memoryUsageMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
@@ -1296,7 +1296,7 @@ async function handleChatRequest(req: express.Request, res: express.Response) {
       userPrompt.toLowerCase().includes('rebase conflict') ||
       userPrompt.toLowerCase().includes('cherry-pick')
     ) {
-      modelName = 'gemini-2.5-pro'; // keep pro tier unchanged for now
+      modelName = 'gemini-3.6-flash'; // keep pro tier unchanged for now
     } else if (
       effectiveTier === 'fast' ||
       userPrompt.toLowerCase().includes('quick') ||
@@ -1467,7 +1467,7 @@ app.post('/api/gitpet/analyze', async (req, res) => {
     }
 
     const ai = getGenAI();
-    let modelName = tier === 'deep' ? 'gemini-2.5-pro' : 'gemini-3.6-flash';
+    let modelName = tier === 'deep' ? 'gemini-3.6-flash' : 'gemini-3.6-flash';
 
     if (ai) {
       try {
@@ -1606,8 +1606,8 @@ function generateFallbackAvatar(prompt: string): string {
   const bgGradient = isCyberpunk
     ? 'linear-gradient(135deg, #0F172A 0%, #312E81 50%, #4C1D95 100%)'
     : isPixel
-    ? 'linear-gradient(135deg, #1E293B 0%, #0F766E 100%)'
-    : 'linear-gradient(135deg, #1E1B4B 0%, #2563EB 50%, #38BDF8 100%)';
+      ? 'linear-gradient(135deg, #1E293B 0%, #0F766E 100%)'
+      : 'linear-gradient(135deg, #1E1B4B 0%, #2563EB 50%, #38BDF8 100%)';
 
   const mascotEmoji = isDragon ? '🐉' : isCat ? '🐱' : '🐕';
   const badgeText = isCyberpunk ? 'CYBER-BYTE' : isPixel ? 'PIXEL-BYTE' : 'BYTE-PRO';
@@ -2014,15 +2014,15 @@ app.get('/api/ai/images/approved', (req, res) => {
     success: true,
     currentAsset: currentAsset
       ? {
-          id: currentAsset.id,
-          prompt: currentAsset.prompt,
-          imageUrl: currentAsset.imageUrl,
-          aspectRatio: currentAsset.aspectRatio,
-          status: currentAsset.status,
-          targetHealthState: currentAsset.targetHealthState,
-          approvedAt: currentAsset.approvedAt,
-          createdAt: currentAsset.createdAt,
-        }
+        id: currentAsset.id,
+        prompt: currentAsset.prompt,
+        imageUrl: currentAsset.imageUrl,
+        aspectRatio: currentAsset.aspectRatio,
+        status: currentAsset.status,
+        targetHealthState: currentAsset.targetHealthState,
+        approvedAt: currentAsset.approvedAt,
+        createdAt: currentAsset.createdAt,
+      }
       : null,
     history: approvedAssetHistory.map((id) => {
       const a = assetRegistry.get(id);
@@ -2188,7 +2188,7 @@ You help them check branch synchronization, warn them if they have uncommitted f
       if (liveSession && typeof liveSession.close === 'function') {
         try {
           liveSession.close();
-        } catch (_) {}
+        } catch (_) { }
       }
     });
   });

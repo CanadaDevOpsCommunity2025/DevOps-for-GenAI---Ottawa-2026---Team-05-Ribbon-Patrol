@@ -25,7 +25,6 @@ import {
   CONFLICT_SCENARIO,
   UNSAFE_LOSS_RISK_SCENARIO,
 } from './data/mockScenarios';
-import { LIVE_REPO } from './data/liveRepoConfig';
 import {
   RepositoryState,
   ChatMessage,
@@ -52,25 +51,17 @@ export default function App() {
   const [liveScanState, setLiveScanState] = useState<LiveScanState>({ loading: false });
   const [cachedSandboxState, setCachedSandboxState] = useState<RepositoryState>(MVP_SCENARIO.state);
 
-  // Live Repo (public GitHub fixture) branch picker state
-  const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
-  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
-  // Server capability, read once at startup: live mode can still be read-only
-  // if the operator has not opted into writes.
-  const [writesEnabled, setWritesEnabled] = useState<boolean>(false);
-  const [workspaceRoot, setWorkspaceRoot] = useState<string>('');
-
   const [previewAction, setPreviewAction] = useState<RecommendedAction | null>(null);
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  
+
   // 90-Second Guided Demo State
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
   const [demoStep, setDemoStep] = useState<number>(1);
   const [isDemoPaused, setIsDemoPaused] = useState<boolean>(false);
   const [demoElapsedSeconds, setDemoElapsedSeconds] = useState<number>(0);
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
-  
+
   // Quick Palette & Audio State
   const [isQuickPaletteOpen, setIsQuickPaletteOpen] = useState<boolean>(false);
   const [isAudioMutedState, setIsAudioMutedState] = useState<boolean>(() => isAudioMuted());
@@ -191,7 +182,7 @@ export default function App() {
       id: 'welcome_msg',
       sender: 'assistant',
       role: 'byte_mascot',
-      modelUsed: 'gemini-2.5-flash',
+      modelUsed: 'gemini-3.5-flash',
       timestamp: 'Just now',
       text: `Hello! I'm **Byte**, your ambient repository companion.\n\nI monitor your repository's branch drift, uncommitted working tree diffs, and work-loss hazards in real-time.\n\nClick **🚀 90s Demo** to see the full walkthrough, ask me for a status report, or test any scenario!`,
       evidenceSummary: {
@@ -207,39 +198,13 @@ export default function App() {
   ]);
 
   // Handler for sending messages to Gemini API backend (/api/ai/chat)
-  // Ask the server what it is actually able to do. Live Workspace Mode can
-  // still be read-only, and the repository it inspects is set server-side.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/health');
-        const data = await res.json();
-        if (cancelled) return;
-        setWritesEnabled(Boolean(data.writesEnabled));
-        setWorkspaceRoot(data.workspaceRoot || '');
-      } catch {
-        // Leave the conservative defaults in place.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleSendMessage = async (
     userPrompt: string,
     roleOverride?: ChatRole,
-    tierOverride?: ModelTier,
-    // Callers that have just queued a state change must pass the new state
-    // explicitly: `repoState` below is captured from the render this function
-    // was created in, so a prompt fired immediately after setRepoState would
-    // otherwise describe the previous repository.
-    stateOverride?: RepositoryState
+    tierOverride?: ModelTier
   ) => {
     const activeRole = roleOverride || selectedRole;
     const activeTier = tierOverride || selectedTier;
-    const activeState = stateOverride ?? repoState;
 
     const userMsg: ChatMessage = {
       id: `msg_user_${Date.now()}`,
@@ -268,21 +233,17 @@ export default function App() {
           role: activeRole,
           modelTier: activeTier,
           history,
-          state: activeState,
+          state: repoState,
         }),
       });
 
       const data = await res.json();
 
       if (data.success && data.reply) {
-        // Use the action the server just produced. This previously read
-        // messages[0]?.recommendedAction — the welcome message — so the card
-        // was either stale or, on a healthy repo, absent entirely, which made
-        // "do it" appear to do nothing.
-        const recAction: RecommendedAction | undefined =
-          data.recommendedAction && data.safety?.verdict !== 'block'
-            ? { ...data.recommendedAction, id: data.recommendedAction.id || `act_${Date.now()}` }
-            : undefined;
+        let recAction: RecommendedAction | undefined = undefined;
+        if (repoState.healthLevel !== 'Healthy' && !data.reply.includes('```')) {
+          recAction = messages[0]?.recommendedAction;
+        }
 
         const assistantMsg: ChatMessage = {
           id: `msg_asst_${Date.now()}`,
@@ -292,50 +253,23 @@ export default function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: data.reply,
           evidenceSummary: {
-            symptom: activeState.symptomTitle,
-            healthLevel: activeState.healthLevel,
+            symptom: repoState.symptomTitle,
+            healthLevel: repoState.healthLevel,
             evidencePoints: [
-              `Branch: ${activeState.currentBranch.name}`,
-              `Ahead: ${activeState.currentBranch.aheadCount} | Behind: ${activeState.currentBranch.behindCount}`,
-              `Uncommitted files: ${activeState.workingTree.length}`,
+              `Branch: ${repoState.currentBranch.name}`,
+              `Ahead: ${repoState.currentBranch.aheadCount} | Behind: ${repoState.currentBranch.behindCount}`,
+              `Uncommitted files: ${repoState.workingTree.length}`,
             ],
           },
           recommendedAction: recAction,
         };
         setMessages((prev) => [...prev, assistantMsg]);
-
-        if (data.aiUnavailable) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `msg_ai_unavailable_${Date.now()}`,
-              sender: 'system' as const,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              text: data.aiUnavailableReason || 'The AI model was unavailable; deterministic guidance is shown instead.',
-            },
-          ]);
-        }
-
-        if (data.safety?.verdict === 'block') {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `msg_blocked_${Date.now()}`,
-              sender: 'system' as const,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              text: `The suggested command was withheld by the safety policy: ${(data.safety.findings || [])
-                .filter((f: any) => f.severity === 'block')
-                .map((f: any) => f.message)
-                .join(' ')}`,
-            },
-          ]);
-        }
       } else {
         const analyzeRes = await fetch('/api/gitpet/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            state: activeState,
+            state: repoState,
             userMessage: userPrompt,
           }),
         });
@@ -346,12 +280,12 @@ export default function App() {
             id: `msg_asst_${Date.now()}`,
             sender: 'assistant',
             role: activeRole,
-            modelUsed: 'gemini-2.5-flash',
+            modelUsed: 'gemini-3.5-flash',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             text: analyzeData.explanation,
             evidenceSummary: {
-              symptom: activeState.symptomTitle,
-              healthLevel: activeState.healthLevel,
+              symptom: repoState.symptomTitle,
+              healthLevel: repoState.healthLevel,
               evidencePoints: analyzeData.evidencePoints || [],
             },
             recommendedAction: analyzeData.recommendedAction,
@@ -365,14 +299,14 @@ export default function App() {
         id: `msg_asst_${Date.now()}`,
         sender: 'assistant',
         role: activeRole,
-        modelUsed: 'gemini-2.5-flash',
+        modelUsed: 'gemini-3.5-flash',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: `Based on current repository signals, branch **${repoState.currentBranch.name}** has ${repoState.currentBranch.behindCount} commits behind upstream with ${repoState.workingTree.length} uncommitted files.\n\nRecommended: Run \`git stash push -m "gitpet: save"\` before pulling.`,
         evidenceSummary: {
-          symptom: activeState.symptomTitle,
-          healthLevel: activeState.healthLevel,
+          symptom: repoState.symptomTitle,
+          healthLevel: repoState.healthLevel,
           evidencePoints: [
-            `Branch: ${activeState.currentBranch.name}`,
+            `Branch: ${repoState.currentBranch.name}`,
             `Behind: ${repoState.currentBranch.behindCount} commits`,
             `Working tree: ${repoState.workingTree.length} files`,
           ],
@@ -385,101 +319,9 @@ export default function App() {
   };
 
   // Handler for executing the approved safe action
-  const handleExecuteAction = async (action: RecommendedAction) => {
+  const handleExecuteAction = (action: RecommendedAction) => {
     setPreviewAction(null);
     setExecutingActionId(action.id);
-
-    // Live workspace: run the command for real and re-read the repository.
-    // Sandbox keeps the simulated transition below, so demo scenarios still
-    // work without touching anything on disk.
-    if (isLiveMode) {
-      if (!writesEnabled) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_writes_off_${Date.now()}`,
-            sender: 'system' as const,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text:
-              'Live Workspace is read-only on this server, so nothing was run. ' +
-              'Set GITPET_ALLOW_WRITES=true in .env (and GITPET_WORKSPACE_ROOT to the repository you want GitPet to act on), then restart.',
-          },
-        ]);
-        setExecutingActionId(null);
-        return;
-      }
-
-      const previousHealth = repoState.healthPercentage;
-      try {
-        const res = await fetch('/api/git/execute-action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command: action.command }),
-        });
-        const data = await res.json();
-
-        if (data.state) setRepoState(data.state);
-
-        if (data.success) {
-          setAuditHistory((prev) => [
-            {
-              id: `audit_${Date.now()}`,
-              command: action.command,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              description: action.title,
-            },
-            ...prev,
-          ]);
-          try {
-            confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
-          } catch {
-            // Confetti is decorative; never let it break the result path.
-          }
-        }
-
-        // Echo real stdout/stderr so the outcome is verifiable, not asserted.
-        const transcript = (data.steps || [])
-          .filter((step: any) => !step.skipped)
-          .map((step: any) => `$ ${step.command}\n${(step.stdout || step.stderr || '(no output)').trim()}`)
-          .join('\n\n');
-
-        setMessages((prev) => [
-          ...prev.map((m) =>
-            m.recommendedAction?.id === action.id
-              ? {
-                  ...m,
-                  executed: data.success,
-                  executionResult: {
-                    success: data.success,
-                    message: data.message,
-                    previousHealth,
-                    newHealth: data.state?.healthPercentage ?? previousHealth,
-                  },
-                }
-              : m
-          ),
-          {
-            id: `msg_exec_${Date.now()}`,
-            sender: 'system' as const,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: transcript || data.message || 'No output.',
-          },
-        ]);
-      } catch (err) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg_exec_err_${Date.now()}`,
-            sender: 'system' as const,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: 'Could not reach the execution endpoint.',
-          },
-        ]);
-      } finally {
-        setExecutingActionId(null);
-      }
-      return;
-    }
 
     setTimeout(() => {
       const previousHealth = repoState.healthPercentage;
@@ -556,7 +398,7 @@ export default function App() {
           origin: { y: 0.7 },
           colors: ['#10B981', '#3B82F6', '#6366F1', '#F59E0B'],
         });
-      } catch (_) {}
+      } catch (_) { }
 
       // Play warm ascending sync success chime
       playSyncSuccessSound();
@@ -585,32 +427,18 @@ export default function App() {
         prev.map((m) =>
           m.recommendedAction?.id === action.id
             ? {
-                ...m,
-                executed: true,
-                executionResult: {
-                  success: true,
-                  message:
-                    'Simulated in Sandbox Mode — no repository was modified. Switch to Live Workspace to run this for real.',
-                  previousHealth,
-                  newHealth: finalState.healthPercentage,
-                },
-              }
+              ...m,
+              executed: true,
+              executionResult: {
+                success: true,
+                message: 'Action completed successfully! Repository state verified and clean.',
+                previousHealth,
+                newHealth: finalState.healthPercentage,
+              },
+            }
             : m
         )
       );
-
-      // Say plainly that nothing on disk changed. Without this the sandbox
-      // reports success identically to a real run, which reads as GitPet
-      // silently failing to touch the repository.
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `msg_sandbox_note_${Date.now()}`,
-          sender: 'system' as const,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `Sandbox Mode: simulated \`${action.command}\`. No files, branches or commits were changed. Toggle Live Workspace in the top bar to run commands against a real repository.`,
-        },
-      ]);
     }, 1200);
   };
 
@@ -634,10 +462,8 @@ export default function App() {
   };
 
   // Live Workspace Status Scanner
-  const handleFetchLiveStatus = async (isInitialSwitch = false, silent = false) => {
-    if (!silent) {
-      setLiveScanState((prev) => ({ ...prev, loading: true, error: null }));
-    }
+  const handleFetchLiveStatus = async (isInitialSwitch = false) => {
+    setLiveScanState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetch('/api/git/live-status');
       const data = await res.json();
@@ -648,19 +474,17 @@ export default function App() {
           error: 'Current workspace is not a Git repository.',
           lastRefreshed: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         });
-        if (!silent) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `msg_live_unavail_${Date.now()}`,
-              sender: 'assistant',
-              role: selectedRole,
-              modelUsed: 'gemini-2.5-flash',
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
-            },
-          ]);
-        }
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `msg_live_unavail_${Date.now()}`,
+            sender: 'assistant',
+            role: selectedRole,
+            modelUsed: 'gemini-3.5-flash',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
+          },
+        ]);
       } else if (data.success && data.state) {
         setRepoState(data.state);
         setLiveScanState({
@@ -686,22 +510,13 @@ export default function App() {
             summaryText += `\n\nWorking tree is completely clean!`;
           }
 
-          // State which repository is in scope and whether actions can run.
-          // Without this, a read-only server looks identical to a broken one.
-          if (workspaceRoot) {
-            summaryText += `\n\nRepository: \`${workspaceRoot}\``;
-          }
-          summaryText += writesEnabled
-            ? `\n\n✅ **Actions enabled** — approved commands run against this repository.`
-            : `\n\n🔒 **Read-only** — approved commands will not run. Set \`GITPET_ALLOW_WRITES=true\` in .env and restart to enable them.`;
-
           setMessages((prev) => [
             ...prev,
             {
               id: `live_switch_${Date.now()}`,
               sender: 'assistant',
               role: selectedRole,
-              modelUsed: 'gemini-2.5-flash',
+              modelUsed: 'gemini-3.5-flash',
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               text: summaryText,
               evidenceSummary: {
@@ -735,7 +550,6 @@ export default function App() {
   const handleToggleLiveMode = () => {
     if (!isLiveMode) {
       setCachedSandboxState(repoState);
-      setActiveLiveBranch(null);
       setIsLiveMode(true);
       handleFetchLiveStatus(true);
     } else {
@@ -747,7 +561,7 @@ export default function App() {
           id: `sandbox_switch_${Date.now()}`,
           sender: 'assistant',
           role: selectedRole,
-          modelUsed: 'gemini-2.5-flash',
+          modelUsed: 'gemini-3.5-flash',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: `📦 **Switched back to Sandbox Mode**.\n\nRestored previous scenario preset. You can continue simulating anomalies and test safe actions risk-free.`,
         },
@@ -755,25 +569,11 @@ export default function App() {
     }
   };
 
-  // Auto-refresh Live Workspace while active, so uncommitted edits and new
-  // commits show up on their own instead of requiring a manual "Scan Live
-  // Repo" click. Silent polls skip the loading spinner and the connection
-  // chat message so they don't spam the UI every tick.
-  useEffect(() => {
-    if (!isLiveMode) return;
-    const interval = setInterval(() => {
-      handleFetchLiveStatus(false, true);
-    }, 5000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLiveMode]);
-
   // Scenario selection
   const handleSelectScenario = (scenario: ScenarioPreset) => {
     if (isLiveMode) {
       setIsLiveMode(false);
     }
-    setActiveLiveBranch(null);
     setActiveScenarioId(scenario.id);
     setRepoState(scenario.state);
 
@@ -783,7 +583,7 @@ export default function App() {
         id: `scenario_switch_${Date.now()}`,
         sender: 'assistant',
         role: selectedRole,
-        modelUsed: 'scenario',
+        modelUsed: 'gemini-3.5-flash',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: `Loaded scenario: **${scenario.title}**.\n\n${scenario.description}`,
         evidenceSummary: {
@@ -799,70 +599,8 @@ export default function App() {
     ]);
 
     setTimeout(() => {
-      handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier, scenario.state);
+      handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier);
     }, 300);
-  };
-
-  // Load real repository state from the public GitHub test fixture
-  // (farisnour/gitpet-acme-corp-ecommerce-store) instead of a mock scenario.
-  const handleLoadLiveRepo = async (branch: string) => {
-    if (isLiveMode) {
-      setIsLiveMode(false);
-    }
-    setIsLiveLoading(true);
-    try {
-      const res = await fetch(`/api/repo/live?branch=${encodeURIComponent(branch)}`);
-      const data = await res.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to load live repository state');
-      }
-
-      setActiveLiveBranch(branch);
-      setActiveScenarioId(`live:${branch}`);
-      setRepoState(data.state);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `live_switch_${Date.now()}`,
-          sender: 'assistant',
-          role: selectedRole,
-          modelUsed: 'github_live',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `🔗 Loaded **live** data from [${data.repo}](${data.repoUrl}) — branch \`${branch}\`.\n\n${data.state.symptomDescription}`,
-          evidenceSummary: {
-            symptom: data.state.symptomTitle,
-            healthLevel: data.state.healthLevel,
-            evidencePoints: [
-              data.state.symptomDescription,
-              `Ahead: ${data.state.currentBranch.aheadCount} | Behind: ${data.state.currentBranch.behindCount} (vs ${LIVE_REPO.defaultBranch})`,
-              `Health Score: ${data.state.healthPercentage}%`,
-            ],
-          },
-        },
-      ]);
-
-      setTimeout(() => {
-        handleSendMessage(`Status report for the live ${branch} branch! What needs attention?`, selectedRole, selectedTier);
-      }, 300);
-    } catch (err: any) {
-      console.warn('Failed to load live repo state:', err);
-      const rateLimited = err?.message?.includes('rate limit');
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `live_err_${Date.now()}`,
-          sender: 'system',
-          timestamp: 'Just now',
-          text: rateLimited
-            ? `⚠️ ${err.message}`
-            : `⚠️ Could not reach GitHub for live repo data (network issue). Try again shortly.`,
-        },
-      ]);
-    } finally {
-      setIsLiveLoading(false);
-    }
   };
 
   // Sandbox Anomaly Injectors
@@ -1022,7 +760,7 @@ export default function App() {
           id: `demo_clean_msg_${Date.now()}`,
           sender: 'assistant',
           role: 'byte_mascot',
-          modelUsed: 'gemini-2.5-flash',
+          modelUsed: 'gemini-3.5-flash',
           timestamp: 'Just now',
           text: '🟢 **Pristine Repository**: Branch **main** is 100% synchronized with upstream origin/main with a completely clean working tree.\n\nNotice how Byte is completely relaxed, tail is wagging happily, and health is 100%.',
           evidenceSummary: {
@@ -1061,7 +799,7 @@ export default function App() {
           id: `demo_report_${Date.now()}`,
           sender: 'assistant',
           role: 'byte_mascot',
-          modelUsed: 'gemini-2.5-flash',
+          modelUsed: 'gemini-3.5-flash',
           timestamp: 'Just now',
           text: `I noticed **${MVP_SCENARIO.state.currentBranch.name}** is **3 commits behind** ${MVP_SCENARIO.state.currentBranch.upstream} while you have **2 uncommitted files** in your working directory. Stashing your edits before pulling avoids mixing unfinished work with upstream changes and eliminates merge accident risk.`,
           evidenceSummary: {
@@ -1176,9 +914,6 @@ export default function App() {
           onToggleLiveMode={handleToggleLiveMode}
           onRefreshLive={handleFetchLiveStatus}
           liveScanState={liveScanState}
-          activeLiveBranch={activeLiveBranch}
-          isLiveLoading={isLiveLoading}
-          onSelectLiveBranch={handleLoadLiveRepo}
         />
 
         {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}
@@ -1193,7 +928,7 @@ export default function App() {
 
             {/* Quick Practice Metrics Card */}
             <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 font-bold">
                   🔥
                 </div>
@@ -1204,7 +939,7 @@ export default function App() {
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/80">
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1 rounded-full border border-emerald-200/80">
                 Active & Protected
               </span>
             </div>

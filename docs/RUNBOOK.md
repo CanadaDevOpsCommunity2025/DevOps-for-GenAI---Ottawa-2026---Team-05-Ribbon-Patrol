@@ -40,8 +40,8 @@ curl -s http://localhost:3000/api/health | jq .
   "status": "healthy",
   "service": "GitPet DevSecOps AI Engine",
   "geminiAvailable": true,
-  "geminiModelPrimary": "gemini-2.5-flash",
-  "geminiModelPro": "gemini-2.5-pro",
+  "geminiModelPrimary": "gemini-3.5-flash",
+  "geminiModelPro": "gemini-3.5-pro",
   "timestamp": "2026-08-22T16:22:00.000Z",
   "uptimeSeconds": 1420,
   "memoryUsageMb": 64,
@@ -70,7 +70,7 @@ curl -s http://localhost:3000/api/audit-logs | jq .
 ### Scenario B: High Latency or API Rate Limiting (HTTP 429)
 - **Symptoms:** Latency spikes in `/api/audit-logs`.
 - **System Behavior:** Express backend catches the error, serves the fallback resolution card, and sets confidence to fallback mode.
-- **Remediation:** Switch model persona to **Gemini 2.5 Flash** (faster, higher rate limits) or check Google AI Studio quota.
+- **Remediation:** Switch model persona to **Gemini 3.6 Flash** (faster, higher rate limits) or check Google AI Studio quota.
 
 ### Scenario C: WebSocket Connection Dropped
 - **Symptoms:** Live audio/vision modal shows reconnecting banner.
@@ -97,4 +97,4 @@ If an accidental Git mutation occurs despite preview boundaries, follow standard
 
 - **Concurrency:** Node.js event loop handles 1,000+ active WebSocket connections per core.
 - **Memory Footprint:** In-memory asset and audit buffers are strictly capped (max 200 FIFO entries, <100MB RSS memory).
-- **Cost Controls:** Default model is set to `gemini-2.5-flash` with aggressive token caps (`maxOutputTokens: 500`) to maintain cost efficiency at scale.
+- **Cost Controls:** Default model is set to `gemini-3.5-flash` with aggressive token caps (`maxOutputTokens: 500`) to maintain cost efficiency at scale.

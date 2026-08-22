@@ -21,11 +21,11 @@ GitPet reinvents developer-repository interaction by bridging ambient computing,
 
 ## 2. Elevator Pitch
 
-> *"Terminal commands hide context, and unmonitored AI agents risk destructive mutations. **GitPet** is an ambient DevSecOps companion that maps live Git and infrastructure signals directly into an expressive virtual pet. Powered by Google Gemini 2.5 and Imagen 3, GitPet visually signals branch drift, explains conflicts multimodally via voice and text, and proposes verified, reversible one-click remediation actions—delivering 100% human-in-the-loop safety without ever breaking developer flow."*
+> *"Terminal commands hide context, and unmonitored AI agents risk destructive mutations. **GitPet** is an ambient DevSecOps companion that maps live Git and infrastructure signals directly into an expressive virtual pet. Powered by Google Gemini 3.6 and Imagen 3, GitPet visually signals branch drift, explains conflicts multimodally via voice and text, and proposes verified, reversible one-click remediation actions—delivering 100% human-in-the-loop safety without ever breaking developer flow."*
 
 ### The 30-Second Highlight Reel:
 1. **Notice:** Ambient avatar reflects health (0–100%) and symptoms (e.g. *tangled yarn* for merge conflicts, *backpack* for unpushed work).
-2. **Understand:** Natural language breakdowns powered by Google Gemini 2.5 Flash with structured evidence, confidence scores, and reversal plans.
+2. **Understand:** Natural language breakdowns powered by Google Gemini 3.6 Flash with structured evidence, confidence scores, and reversal plans.
 3. **Resolve:** Interactive diff review and safe, bounded single-click execution (`stash -> pull -> pop`, checkout, rebase recovery) with strict zero-force-push security boundaries.
 
 ---
@@ -73,7 +73,7 @@ graph TD
 
     Sub1 --- S1["- Expressive posture & health glow<br/>- Web Audio synthesizer cues"]
     Sub2 --- S2["- Mandatory human-in-the-loop preview<br/>- Pre-computed reversal command"]
-    Sub3 --- S3["- Gemini 2.5 Flash/Pro reasoning<br/>- Gemini Live Audio & Web Speech<br/>- Imagen 3 asset generation"]
+    Sub3 --- S3["- Gemini 3.6 Flash/Pro reasoning<br/>- Gemini Live Audio & Web Speech<br/>- Imagen 3 asset generation"]
     Sub4 --- S4["- Deterministic 90s presentation sandbox<br/>- Live workspace scanner<br/>- Offline rule-based fallback"]
 ```
 
