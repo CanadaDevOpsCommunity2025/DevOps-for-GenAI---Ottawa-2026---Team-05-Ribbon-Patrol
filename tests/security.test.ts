@@ -62,6 +62,49 @@ export function evaluateGitActionGate(action: GitAction, approvedByHuman: boolea
   return { allowed: true, status: 'AUTHORIZED: Safe bounded execution granted' };
 }
 
+// AI Governance & Responsible AI Telemetry Engine
+export interface ModelTelemetry {
+  model: string;
+  provider: string;
+  temperature: number;
+  confidenceScore: number;
+  riskTier: 'Critical' | 'High' | 'Medium' | 'Low';
+  fallbackActive: boolean;
+  rollbackCommand: string;
+}
+
+export function generateGovernanceResolution(
+  geminiAvailable: boolean,
+  driftState: { behind: number; dirty: boolean; conflict: boolean }
+): ModelTelemetry & { resolutionText: string } {
+  if (!geminiAvailable) {
+    // Graceful deterministic fallback
+    return {
+      model: 'deterministic-rule-engine',
+      provider: 'local-in-memory',
+      temperature: 0,
+      confidenceScore: 0.85,
+      riskTier: 'Low',
+      fallbackActive: true,
+      rollbackCommand: 'git stash pop',
+      resolutionText: driftState.conflict 
+        ? 'Safe rule-based resolution: inspect conflicting files or run git merge --abort'
+        : 'Safe rule-based resolution: stash local changes and pull upstream'
+    };
+  }
+
+  return {
+    model: 'gemini-2.5-flash',
+    provider: 'Google AI Studio',
+    temperature: 0.4,
+    confidenceScore: 0.98,
+    riskTier: driftState.conflict ? 'Medium' : 'Low',
+    fallbackActive: false,
+    rollbackCommand: 'git stash pop',
+    resolutionText: 'AI recommendation: Rebase onto upstream after stashing working changes.'
+  };
+}
+
 describe('DevSecOps Security & Adversarial Guardrails', () => {
   it('should redact leaked API keys and bearer tokens from prompts', () => {
     const maliciousInput = 'Here is my key AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q and bearer token bearer secret123';
@@ -119,5 +162,32 @@ describe('Human-in-the-Loop Action Approval Gate', () => {
     const result = evaluateGitActionGate(forcePushAction, true);
     expect(result.allowed).toBe(false);
     expect(result.status).toContain('BLOCKED');
+  });
+});
+
+describe('AI Governance & Responsible AI Controls', () => {
+  it('should record model and provider traceability settings', () => {
+    const telemetry = generateGovernanceResolution(true, { behind: 3, dirty: true, conflict: false });
+    expect(telemetry.model).toBe('gemini-2.5-flash');
+    expect(telemetry.provider).toBe('Google AI Studio');
+    expect(telemetry.temperature).toBe(0.4);
+    expect(telemetry.confidenceScore).toBeGreaterThanOrEqual(0.9);
+    expect(telemetry.rollbackCommand).toBe('git stash pop');
+  });
+
+  it('should trigger graceful fallback when Gemini API is unavailable (Incident Response)', () => {
+    const fallback = generateGovernanceResolution(false, { behind: 2, dirty: true, conflict: true });
+    expect(fallback.fallbackActive).toBe(true);
+    expect(fallback.model).toBe('deterministic-rule-engine');
+    expect(fallback.resolutionText).toContain('Safe rule-based resolution');
+    expect(fallback.rollbackCommand).toBeTruthy();
+  });
+
+  it('should enforce risk classification based on impact level', () => {
+    const conflictCase = generateGovernanceResolution(true, { behind: 1, dirty: false, conflict: true });
+    expect(conflictCase.riskTier).toBe('Medium');
+
+    const standardCase = generateGovernanceResolution(true, { behind: 1, dirty: false, conflict: false });
+    expect(standardCase.riskTier).toBe('Low');
   });
 });

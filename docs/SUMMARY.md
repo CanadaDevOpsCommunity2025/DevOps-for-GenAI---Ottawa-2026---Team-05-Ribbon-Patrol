@@ -1,10 +1,21 @@
 # Table of contents
 
-## Kubepet
+## GitPet Compliance & Architecture Documentation
 
+* [Participant Guidelines & Evidence Matrix (P-01 to P-15)](GUIDELINES_COMPLIANCE.md)
 * [Project Overview & Hackathon Submission](PROJECT_OVERVIEW.md)
 * [Functional Specification Document: GitPet](README.md)
-* [Roadmap](kubepet/roadmap/README.md)
+* [Architecture & System Design](architecture/ARCHITECTURE.md)
+* [Security Threat Model & Adversarial Defense](SECURITY_THREAT_MODEL.md)
+* [AI Governance & System Card](AI_GOVERNANCE.md)
+* [Operations & SRE Runbook](RUNBOOK.md)
+* [Test Suite Execution & Verification Report](TEST_REPORT.md)
+* [Software Bill of Materials (SBOM) & Supply Chain](SBOM_MANIFEST.md)
+* [Demo Integrity & Fidelity Notes](DEMO_NOTES.md)
+
+## Development Roadmap & Phased Milestones
+
+* [Roadmap Overview](kubepet/roadmap/README.md)
   * [Phase 1: Core API & state completeness](kubepet/roadmap/phase-1-core-api-and-state-completeness/README.md)
     * [1.1 Unsafe state and destructive anomaly](kubepet/roadmap/phase-1-core-api-and-state-completeness/1.1-unsafe-state-and-destructive-anomaly.md)
     * [1.2 AI route aliases and asset approval](kubepet/roadmap/phase-1-core-api-and-state-completeness/1.2-ai-route-aliases-and-asset-approval.md)
@@ -18,4 +29,4 @@
     * [3.1 SpeechRecognition voice fallback](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.1-speechrecognition-voice-fallback.md)
     * [3.2 Image Studio style presets and promotion](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.2-image-studio-style-presets-and-promotion.md)
     * [3.3 End-to-end demo rehearsal and verification](kubepet/roadmap/phase-3-voice-and-multimodal-hardening/3.3-end-to-end-demo-rehearsal-and-verification.md)
-* [Page 1](kubepet/page-1.md)
+
