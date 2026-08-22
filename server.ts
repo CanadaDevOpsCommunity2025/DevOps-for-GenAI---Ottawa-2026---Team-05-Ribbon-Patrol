@@ -6,6 +6,8 @@ import { execFile } from 'child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
+import { fetchLiveRepositoryState } from './src/services/githubClient';
+import { LIVE_REPO, LIVE_REPO_BRANCHES } from './src/data/liveRepoConfig';
 
 dotenv.config();
 
@@ -463,6 +465,31 @@ function runGitCommand(
     );
   });
 }
+
+// API: Fetch live repository state from the real public GitHub test fixture
+// (farisnour/gitpet-acme-corp-ecommerce-store) in place of a mock scenario.
+// Complements /api/git/live-status below, which scans whatever local repo
+// this server process is actually running in.
+app.get('/api/repo/live', async (req, res) => {
+  try {
+    const branch = typeof req.query.branch === 'string' ? req.query.branch : LIVE_REPO.defaultBranch;
+    if (!LIVE_REPO_BRANCHES.includes(branch)) {
+      return res.status(400).json({ error: `Unknown branch "${branch}". Valid branches: ${LIVE_REPO_BRANCHES.join(', ')}` });
+    }
+    const state = await fetchLiveRepositoryState(branch);
+    res.json({
+      success: true,
+      source: 'github_live',
+      repo: `${LIVE_REPO.owner}/${LIVE_REPO.repo}`,
+      repoUrl: `https://github.com/${LIVE_REPO.owner}/${LIVE_REPO.repo}`,
+      branches: LIVE_REPO_BRANCHES,
+      state,
+    });
+  } catch (err: any) {
+    console.error('Error in /api/repo/live:', err);
+    res.status(502).json({ error: 'Failed to fetch live repository state from GitHub', message: err?.message });
+  }
+});
 
 // Live Git Workspace Scanner
 async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {

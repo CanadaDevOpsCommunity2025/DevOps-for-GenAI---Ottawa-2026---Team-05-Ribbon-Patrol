@@ -18,6 +18,7 @@ import {
   CONFLICT_SCENARIO,
   UNSAFE_LOSS_RISK_SCENARIO,
 } from './data/mockScenarios';
+import { LIVE_REPO } from './data/liveRepoConfig';
 import {
   RepositoryState,
   ChatMessage,
@@ -31,9 +32,38 @@ import {
   LiveScanState,
 } from './types';
 
+// Neutral placeholder shown for the brief moment before the live repo fetch
+// on mount resolves, so the app never flashes acme-corp mock data by default.
+const LIVE_LOADING_STATE: RepositoryState = {
+  repoName: `${LIVE_REPO.owner}/${LIVE_REPO.repo}`,
+  currentBranch: {
+    name: LIVE_REPO.defaultBranch,
+    upstream: `origin/${LIVE_REPO.defaultBranch}`,
+    aheadCount: 0,
+    behindCount: 0,
+    isDetached: false,
+    isStale: false,
+    lastCommitMessage: 'Connecting to live repository…',
+    lastCommitHash: '',
+    lastActivity: '',
+  },
+  allBranches: [],
+  workingTree: [],
+  stashes: [],
+  localCommitsAhead: [],
+  remoteCommitsBehind: [],
+  commitHistory: [],
+  healthPercentage: 100,
+  healthLevel: 'Healthy',
+  primarySymptom: 'clean_sync',
+  symptomTitle: 'Connecting…',
+  symptomDescription: `Loading live state from ${LIVE_REPO.owner}/${LIVE_REPO.repo}.`,
+  operatorMeaning: '',
+};
+
 export default function App() {
-  const [activeScenarioId, setActiveScenarioId] = useState<string>(MVP_SCENARIO.id);
-  const [repoState, setRepoState] = useState<RepositoryState>(MVP_SCENARIO.state);
+  const [activeScenarioId, setActiveScenarioId] = useState<string>('live:loading');
+  const [repoState, setRepoState] = useState<RepositoryState>(LIVE_LOADING_STATE);
   const [practiceStats, setPracticeStats] = useState<PracticeStats>(INITIAL_PRACTICE_STATS);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [isPitchDeckOpen, setIsPitchDeckOpen] = useState<boolean>(false);
@@ -42,6 +72,8 @@ export default function App() {
   const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<ChatRole>('byte_mascot');
   const [selectedTier, setSelectedTier] = useState<ModelTier>('general');
+  const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
+  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
 
   // Live Workspace Scanner State
   const [isLiveMode, setIsLiveMode] = useState<boolean>(false);
@@ -56,7 +88,8 @@ export default function App() {
     { id: string; command: string; timestamp: string; description: string }[]
   >([]);
 
-  // Initial welcome message with the deterministic MVP action ready for review
+  // Initial message while the live repo fetch (see effect below) is in flight.
+  // Replaced by handleLoadLiveRepo's own message once real data arrives.
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome_msg',
@@ -64,57 +97,7 @@ export default function App() {
       role: 'byte_mascot',
       modelUsed: 'gemini-3.5-flash',
       timestamp: 'Just now',
-      text: `Hello! I'm **Byte**, your ambient repository companion.\n\nI noticed **${MVP_SCENARIO.state.currentBranch.name}** is **3 commits behind** ${MVP_SCENARIO.state.currentBranch.upstream} while you have **2 uncommitted files** in your working directory. Stashing your edits before pulling avoids mixing unfinished work with upstream changes.`,
-      evidenceSummary: {
-        symptom: 'Behind remote with local edits',
-        healthLevel: 'Attention',
-        evidencePoints: [
-          'feature/cart is 3 commits behind origin/feature/cart',
-          '2 uncommitted modified files in working directory',
-          'Safe action: Stash local changes, pull upstream, then restore stash',
-        ],
-      },
-      recommendedAction: {
-        id: 'act_initial_mvp',
-        title: 'Stash Local Changes, Pull Upstream & Restore Stash',
-        summary:
-          'Preserve 2 dirty files in stash, fast-forward pull 3 commits from origin, then cleanly restore your edits.',
-        command:
-          'git stash push -m "gitpet: preserve cart edits before pull" && git pull origin feature/cart && git stash pop',
-        confidence: 'High',
-        confidenceScore: 98,
-        riskLevel: 'Safe',
-        expectedResult:
-          'Branch is synchronized with upstream and your local edits to CartDrawer.tsx and pricingService.ts are preserved.',
-        reversalStep:
-          'git stash (stash index is kept until verified; or git reset --keep HEAD@{1})',
-        evidence: [
-          'Remote branch has 3 newer commits from teammates (Sarah Chen & Marcus Vance)',
-          'Working tree has 2 uncommitted modified files',
-          'Stashing eliminates potential checkout/pull overwrites',
-        ],
-        affectedFiles: [
-          'src/components/cart/CartDrawer.tsx',
-          'src/services/pricingService.ts',
-        ],
-        steps: [
-          {
-            label: '1. Stash uncommitted changes',
-            command: 'git stash push -m "gitpet: preserve work"',
-            details: 'Saves CartDrawer.tsx and pricingService.ts into local stash stack.',
-          },
-          {
-            label: '2. Pull remote commits',
-            command: 'git pull origin feature/cart',
-            details: 'Synchronizes 3 remote commits from origin/feature/cart.',
-          },
-          {
-            label: '3. Pop stashed work',
-            command: 'git stash pop',
-            details: 'Restores your active work cleanly onto the updated branch.',
-          },
-        ],
-      },
+      text: `Hello! I'm **Byte**, your ambient repository companion.\n\nConnecting to **${LIVE_REPO.owner}/${LIVE_REPO.repo}** to pull real branch and commit data…`,
     },
   ]);
 
@@ -520,6 +503,74 @@ export default function App() {
     }, 300);
   };
 
+  // Load real repository state from the public GitHub test fixture
+  // (farisnour/gitpet-acme-corp-ecommerce-store) instead of a mock scenario.
+  const handleLoadLiveRepo = async (branch: string) => {
+    setIsLiveLoading(true);
+    try {
+      const res = await fetch(`/api/repo/live?branch=${encodeURIComponent(branch)}`);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load live repository state');
+      }
+
+      setActiveLiveBranch(branch);
+      setActiveScenarioId(`live:${branch}`);
+      setRepoState(data.state);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `live_switch_${Date.now()}`,
+          sender: 'assistant',
+          role: selectedRole,
+          modelUsed: 'github_live',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: `🔗 Loaded **live** data from [${data.repo}](${data.repoUrl}) — branch \`${branch}\`.\n\n${data.state.symptomDescription}`,
+          evidenceSummary: {
+            symptom: data.state.symptomTitle,
+            healthLevel: data.state.healthLevel,
+            evidencePoints: [
+              data.state.symptomDescription,
+              `Ahead: ${data.state.currentBranch.aheadCount} | Behind: ${data.state.currentBranch.behindCount} (vs ${LIVE_REPO.defaultBranch})`,
+              `Health Score: ${data.state.healthPercentage}%`,
+            ],
+          },
+        },
+      ]);
+
+      setTimeout(() => {
+        handleSendMessage(`Status report for the live ${branch} branch! What needs attention?`, selectedRole, selectedTier);
+      }, 300);
+    } catch (err) {
+      console.warn('Failed to load live repo state:', err);
+      // Fall back to a mock scenario so the app stays usable if GitHub is
+      // unreachable (offline dev, rate limit) instead of leaving the
+      // "Connecting…" placeholder up indefinitely.
+      setActiveScenarioId(MVP_SCENARIO.id);
+      setRepoState(MVP_SCENARIO.state);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `live_err_${Date.now()}`,
+          sender: 'system',
+          timestamp: 'Just now',
+          text: `⚠️ Could not reach GitHub for live repo data (rate limit or network issue). Falling back to a mock scenario — pick a branch above to retry.`,
+        },
+      ]);
+    } finally {
+      setIsLiveLoading(false);
+    }
+  };
+
+  // Default on load: pull real state from the public GitHub test fixture
+  // instead of starting on a hardcoded mock scenario.
+  useEffect(() => {
+    handleLoadLiveRepo(LIVE_REPO.defaultBranch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Sandbox Anomaly Injectors
   const handleInjectRemoteCommit = () => {
     const newCommit = {
@@ -663,6 +714,9 @@ export default function App() {
           onToggleLiveMode={handleToggleLiveMode}
           onRefreshLive={handleFetchLiveStatus}
           liveScanState={liveScanState}
+          activeLiveBranch={activeLiveBranch}
+          isLiveLoading={isLiveLoading}
+          onSelectLiveBranch={handleLoadLiveRepo}
         />
 
         {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}

@@ -642,7 +642,21 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
-  // PRECEDENCE 4: Behind remote with local edits
+  // PRECEDENCE 4: Stale branch (checked before ahead/behind — a branch fully
+  // merged into main should read as "safe to prune", not "needs pulling",
+  // even though behindCount > 0 once main has advanced past the merge point)
+  if (state.currentBranch.isStale) {
+    return {
+      healthPercentage: 74,
+      healthLevel: 'Attention',
+      primarySymptom: 'stale_branch',
+      symptomTitle: `Stale Branch (${state.currentBranch.staleDays || 30} days)`,
+      symptomDescription: 'Branch is merged into main and inactive.',
+      operatorMeaning: 'Prune merged local branch to keep workspace clean.',
+    };
+  }
+
+  // PRECEDENCE 5: Behind remote with local edits
   if (state.currentBranch.behindCount > 0 && state.workingTree.length > 0) {
     const health = Math.max(55, 90 - state.currentBranch.behindCount * 6 - state.workingTree.length * 5);
     return {
@@ -655,7 +669,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
-  // PRECEDENCE 5: Behind remote with clean tree
+  // PRECEDENCE 6: Behind remote with clean tree
   if (state.currentBranch.behindCount > 0) {
     return {
       healthPercentage: Math.max(75, 95 - state.currentBranch.behindCount * 5),
@@ -667,7 +681,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
-  // PRECEDENCE 6: Ahead count / unpushed work
+  // PRECEDENCE 7: Ahead count / unpushed work
   if (state.currentBranch.aheadCount > 0) {
     return {
       healthPercentage: 85,
@@ -676,18 +690,6 @@ export function computeRepositoryHealth(state: RepositoryState): {
       symptomTitle: `${state.currentBranch.aheadCount} Unpushed Local Commits`,
       symptomDescription: `You have commits that haven't been backed up or published to upstream.`,
       operatorMeaning: 'Push commits to origin when ready for review or backup.',
-    };
-  }
-
-  // PRECEDENCE 7: Stale branch
-  if (state.currentBranch.isStale) {
-    return {
-      healthPercentage: 74,
-      healthLevel: 'Attention',
-      primarySymptom: 'stale_branch',
-      symptomTitle: `Stale Branch (${state.currentBranch.staleDays || 30} days)`,
-      symptomDescription: 'Branch is merged into main and inactive.',
-      operatorMeaning: 'Prune merged local branch to keep workspace clean.',
     };
   }
 
