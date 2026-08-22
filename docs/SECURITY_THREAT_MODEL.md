@@ -11,34 +11,33 @@
 
 GitPet acts as an ambient developer companion bridging developer local workspaces and Google Gemini generative intelligence. The architecture establishes strict isolation and least-privilege trust boundaries:
 
-```
-+-----------------------------------------------------------------------------------+
-| TRUST BOUNDARY 1: DEVELOPER WORKSPACE (Client / Local Browser)                    |
-|  - React 19 SPA + Tailwind CSS + Lucide Icons                                     |
-|  - Web Audio API (PCM 16kHz audio capture & playback)                            |
-|  - Canvas frame sampler (Opt-in multimodal screen / diff inspection)             |
-|  - Human Approval Gate (Interactive Preview Changes modal & Diff inspector)       |
-+-----------------------------------------------------------------------------------+
-                                    │  HTTP (REST) / WebSocket (JSON & Binary PCM)
-                                    ▼
-+-----------------------------------------------------------------------------------+
-| TRUST BOUNDARY 2: GITPET SERVICE BACKEND (Node.js / Express Server)               |
-|  - Input Sanitizer & Regex Credential Masker (`[REDACTED_SECRET]`)                |
-|  - Bounded Git Command Allowlist (`runGitCommand` with parameter validation)      |
-|  - Destructive Command Interceptor (Blocks `--force`, `-D`, `clean -fdx`)         |
-|  - Reversal Plan Generator (Calculates compensating rollback steps)               |
-|  - Ring-Buffer Observability & Audit Log (`/api/audit-logs`)                     |
-|  - Health & Telemetry Probe (`/api/health`)                                       |
-+-----------------------------------------------------------------------------------+
-             │ (Local child_process.execFile)             │ (TLS 1.3 / API Key)
-             ▼                                            ▼
-+---------------------------------------+   +---------------------------------------+
-| TRUST BOUNDARY 3: LOCAL REPOSITORY    |   | TRUST BOUNDARY 4: GEMINI CLOUD AI     |
-| - Read-only branch inspection         |   | - Gemini 2.5 Flash / Gemini 2.5 Pro   |
-| - Status, diff & commit log parsing   |   | - Gemini 2.0 Flash Multimodal Live    |
-| - Stash & safe checkout execution     |   | - Imagen 3 Sprite Generation Studio   |
-| - Pre-execution diff preview isolation|   | - Zero Customer Data Retention        |
-+---------------------------------------+   +---------------------------------------+
+```mermaid
+graph TD
+    %% Styling
+    classDef client fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef backend fill:#1e1b4b,stroke:#4f46e5,stroke-width:2px,color:#ffffff;
+    classDef local fill:#14532d,stroke:#16a34a,stroke-width:2px,color:#ffffff;
+    classDef cloud fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+
+    subgraph TB1 [TRUST BOUNDARY 1: DEVELOPER WORKSPACE]
+        Client["<b>Developer Workspace (Client Browser)</b><br/>- React 19 SPA + Tailwind CSS + Lucide Icons<br/>- Web Audio API (PCM 16kHz audio capture & playback)<br/>- Canvas frame sampler (Opt-in multimodal screen / diff inspection)<br/>- Human Approval Gate (Interactive Preview Changes modal & Diff inspector)"]:::client
+    end
+
+    subgraph TB2 [TRUST BOUNDARY 2: GITPET SERVICE BACKEND]
+        Backend["<b>GitPet Service Backend (Node.js / Express Server)</b><br/>- Input Sanitizer & Regex Credential Masker<br/>- Bounded Git Command Allowlist with parameter validation<br/>- Destructive Command Interceptor (Blocks --force, -D, clean -fdx)<br/>- Reversal Plan Generator (Calculates compensating rollback steps)<br/>- Ring-Buffer Observability & Audit Log<br/>- Health & Telemetry Probe"]:::backend
+    end
+
+    subgraph TB3 [TRUST BOUNDARY 3: LOCAL REPOSITORY]
+        Local["<b>Local Repository Workspace</b><br/>- Read-only branch inspection<br/>- Status, diff & commit log parsing<br/>- Stash & safe checkout execution<br/>- Pre-execution diff preview isolation"]:::local
+    end
+
+    subgraph TB4 [TRUST BOUNDARY 4: GEMINI CLOUD AI]
+        Cloud["<b>Gemini Cloud AI</b><br/>- Gemini 2.5 Flash / Gemini 2.5 Pro<br/>- Gemini 2.0 Flash Multimodal Live<br/>- Imagen 3 Sprite Generation Studio<br/>- Zero Customer Data Retention"]:::cloud
+    end
+
+    Client -->|"HTTP (REST) / WebSocket (JSON & Binary PCM)"| Backend
+    Backend -->|"(Local child_process.execFile)"| Local
+    Backend -->|"(TLS 1.3 / API Key)"| Cloud
 ```
 
 ---
@@ -131,21 +130,23 @@ GitPet acts as an ambient developer companion bridging developer local workspace
 
 GitPet supports bidirectional multimodal interaction via the Gemini Live API with defense-in-depth controls:
 
-```
-[User Mic / Screen] ──(Opt-in Toggle)──▶ [Local Stream Capture]
-                                                │
-                                      (Silence & Rate Gate)
-                                                │
-                                                ▼
-                                   [Secure WebSocket over TLS]
-                                                │
-                                                ▼
-                                    [Gemini Live Gateway]
-                                                │
-                                     (Ephemeral Processing)
-                                                │
-                                                ▼
-                                   [Zero Long-Term Storage]
+```mermaid
+graph TD
+    classDef hardware fill:#7f1d1d,stroke:#b91c1c,stroke-width:2px,color:#ffffff;
+    classDef client fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef process fill:#1e1b4b,stroke:#4f46e5,stroke-width:2px,color:#ffffff;
+    classDef storage fill:#0f172a,stroke:#475569,stroke-width:2px,color:#ffffff;
+
+    Mic["User Mic / Screen"]:::hardware
+    Capture["Local Stream Capture"]:::client
+    WebSocket["Secure WebSocket over TLS"]:::client
+    Gateway["Gemini Live Gateway"]:::process
+    Storage["Zero Long-Term Storage"]:::storage
+
+    Mic -->|"Opt-in Toggle"| Capture
+    Capture -->|"Silence & Rate Gate"| WebSocket
+    WebSocket --> Gateway
+    Gateway -->|"Ephemeral Processing"| Storage
 ```
 
 1. **Explicit Permission Gates:** Microphones and screen capture are inactive by default and require deliberate user toggling.

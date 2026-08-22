@@ -58,14 +58,17 @@ We employ a 4-tier risk classification taxonomy aligned with the NIST AI RMF:
 ## 3. Data Governance & Data Flow
 **Judge Look-For:** *No unexplained sensitive-data flow*
 
-```
-                                  DATA LIFECYCLE & BOUNDARIES
-┌────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
-│ Local Workspace Files  │ ───► │ Pre-Flight Sanitizer    │ ───► │ Gemini API Endpoint     │
-│ (Branch drift, status, │      │ - Strips API keys       │      │ (Encrypted TLS 1.3,     │
-│  commit hashes, stats) │      │ - Strips Bearer tokens  │      │  Zero Data Retention,   │
-└────────────────────────┘      │ - Truncates file diffs  │      │  No Training on Inputs) │
-                                └─────────────────────────┘      └─────────────────────────┘
+```mermaid
+graph LR
+    classDef input fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f8fafc;
+    classDef process fill:#1e1b4b,stroke:#4f46e5,stroke-width:2px,color:#f8fafc;
+    classDef cloud fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+
+    Local["Local Workspace Files<br/>(Branch drift, status, commit hashes, stats)"]:::input
+    Sanitizer["Pre-Flight Sanitizer<br/>- Strips API keys<br/>- Strips Bearer tokens<br/>- Truncates file diffs"]:::process
+    Gemini["Gemini API Endpoint<br/>- Encrypted TLS 1.3<br/>- Zero Data Retention<br/>- No Training on Inputs"]:::cloud
+
+    Local --> Sanitizer --> Gemini
 ```
 
 1. **Data Sources:** Only metadata from `git status -s`, `git branch -vv`, and explicitly selected diff chunks are ingested.
@@ -144,11 +147,17 @@ All active model settings and provider health are traceable live via `GET /api/h
 ## 9. Incident Response & Actionable Escalation
 **Judge Look-For:** *Actionable escalation*
 
-```
-                                INCIDENT ESCALATION WORKFLOW
-[ Anomaly Detected ] ──► [ Automatic Fallback ] ──► [ UI Alert & Abort ] ──► [ SRE Runbook Rollback ]
-(High latency / 429 /     (Revert to local rule-     (Developer clicks        (Execute documented
- Prompt injection)         based state machine)       "Cancel / Undo")         git recovery command)
+```mermaid
+graph LR
+    classDef step fill:#1e293b,stroke:#475569,stroke-width:2px,color:#f8fafc;
+    classDef alert fill:#7f1d1d,stroke:#b91c1c,stroke-width:2px,color:#f8fafc;
+
+    Anomaly["1. Anomaly Detected<br/>(High latency / 429 / Prompt injection)"]:::alert
+    Fallback["2. Automatic Fallback<br/>(Revert to local rule-based engine)"]:::step
+    Alert["3. UI Alert & Abort<br/>(Developer clicks 'Cancel / Undo')"]:::step
+    Rollback["4. SRE Runbook Rollback<br/>(Execute git recovery command)"]:::step
+
+    Anomaly --> Fallback --> Alert --> Rollback
 ```
 
 1. **Step 1: Automatic Circuit Breaker:** If Gemini API returns 429, 500, or network timeout, the application instantaneously transitions to deterministic fallback mode.

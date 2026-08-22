@@ -54,19 +54,27 @@ Modern software development involves high cognitive friction and recurring risks
 
 ## 4. Key Value Propositions & Differentiators
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                            GITPET CORE ADVANTAGES                            │
-├──────────────────────────────────────┬───────────────────────────────────────┤
-│ Ambient & Non-Intrusive              │ Bounded AI Agency (Zero Force-Push)   │
-│ - Expressive posture & health glow   │ - Mandatory human-in-the-loop preview │
-│ - Web Audio synthesizer cues         │ - Pre-computed reversal command       │
-├──────────────────────────────────────┼───────────────────────────────────────┤
-│ Multimodal AI Integration            │ Dual-Mode Operation                   │
-│ - Gemini 2.5 Flash / Pro reasoning   │ - Deterministic 90s demo sandbox      │
-│ - Gemini Live Audio & Web Speech     │ - Live workspace filesystem scanner   │
-│ - Imagen 3 pet studio asset generation│ - Offline rule-based fallback         │
-└──────────────────────────────────────┴───────────────────────────────────────┘
+```mermaid
+graph TD
+    classDef advantage fill:#1e293b,stroke:#4f46e5,stroke-width:2px,color:#f8fafc;
+    classDef header fill:#1e1b4b,stroke:#7c3aed,stroke-width:2px,color:#ffffff;
+
+    Title["GitPet Core Advantages"]:::header
+
+    Sub1["Ambient & Non-Intrusive"]:::advantage
+    Sub2["Bounded AI Agency<br/>(Zero Force-Push)"]:::advantage
+    Sub3["Multimodal AI Integration"]:::advantage
+    Sub4["Dual-Mode Operation"]:::advantage
+
+    Title --> Sub1
+    Title --> Sub2
+    Title --> Sub3
+    Title --> Sub4
+
+    Sub1 --- S1["- Expressive posture & health glow<br/>- Web Audio synthesizer cues"]
+    Sub2 --- S2["- Mandatory human-in-the-loop preview<br/>- Pre-computed reversal command"]
+    Sub3 --- S3["- Gemini 2.5 Flash/Pro reasoning<br/>- Gemini Live Audio & Web Speech<br/>- Imagen 3 asset generation"]
+    Sub4 --- S4["- Deterministic 90s presentation sandbox<br/>- Live workspace scanner<br/>- Offline rule-based fallback"]
 ```
 
 ---

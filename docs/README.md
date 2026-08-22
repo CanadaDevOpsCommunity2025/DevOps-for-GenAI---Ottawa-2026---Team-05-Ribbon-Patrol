@@ -192,12 +192,25 @@ The UI uses a minimalist, flat-modern style that avoids visual noise.
 
 The client never calls Gemini with a permanent API key. A server-side AI gateway owns credentials, rate limits, audit records, and request validation.
 
-```
-Web client
-  ├─ Typed chat ───────────────┐
-  ├─ Voice capture/playback ───┼─> AI gateway ─> Gemini APIs
-  └─ Pet asset studio ─────────┘        │
-                                        └─> Repository-state service
+```mermaid
+graph LR
+    classDef client fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+    classDef gateway fill:#2a2b36,stroke:#7c3aed,stroke-width:2px,color:#ffffff;
+    classDef service fill:#1e293b,stroke:#4b5563,stroke-width:1px,color:#ffffff;
+
+    subgraph Client [Web Client]
+        Chat["Typed Chat"]:::client
+        Voice["Voice Capture/Playback"]:::client
+        Studio["Pet Asset Studio"]:::client
+    end
+
+    Gateway["AI Gateway"]:::gateway
+    Gemini["Gemini APIs"]:::service
+    RepoState["Repository-State Service"]:::service
+
+    Chat & Voice & Studio --> Gateway
+    Gateway --> Gemini
+    Gateway --> RepoState
 ```
 
 The repository-state service is the only source of Git facts. The gateway passes an allowlisted context object to Gemini. It never passes shell access, repository files, credentials, or unrestricted tool access.

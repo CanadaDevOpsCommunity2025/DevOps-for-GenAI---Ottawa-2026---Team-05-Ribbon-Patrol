@@ -13,24 +13,37 @@ In accordance with Hackathon Guideline **P-15**, this document explicitly differ
 
 ## 2. Component Fidelity & Architecture Classification
 
-```
-┌───────────────────────────────────────────────────────────────────────────────────────┐
-│                                SYSTEM FIDELITY MAP                                    │
-├───────────────────────────────┬───────────────────────────────────────────────────────┤
-│ 🟢 LIVE FUNCTIONAL COMPONENTS │ - Real-time Google Gemini 2.5 Flash / Pro API calls   │
-│                               │ - Gemini Imagen 3 Avatar Generation Studio            │
-│                               │ - Live Workspace Mode (Read-only Git CLI scanning)    │
-│                               │ - Node.js Express REST API & Health Telemetry Ring    │
-│                               │ - Web Audio Synthesis & SpeechRecognition Voice Engine│
-├───────────────────────────────┼───────────────────────────────────────────────────────┤
-│ 🟡 DETERMINISTIC SANDBOXES    │ - 7 Interactive Demo Scenarios (Divergence, Conflict,  │
-│   (For 90s Presentation Flow) │   Detached HEAD, Stale Branch, Unsafe Anomaly, etc.)  │
-│                               │ - Pre-seeded commit DAGs & file diff fixtures         │
-├───────────────────────────────┼───────────────────────────────────────────────────────┤
-│ 🔵 FALLBACK MECHANISMS        │ - Offline deterministic rule-based state machine      │
-│   (Zero-Downtime Resilience)  │   (activates if GEMINI_API_KEY is unset/rate-limited) │
-│                               │ - Web Speech API fallback if WebSocket Live audio drops│
-└───────────────────────────────┴───────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    classDef live fill:#14532d,stroke:#16a34a,stroke-width:2px,color:#ffffff;
+    classDef sandbox fill:#78350f,stroke:#d97706,stroke-width:2px,color:#ffffff;
+    classDef fallback fill:#1e3a8a,stroke:#2563eb,stroke-width:2px,color:#ffffff;
+    classDef main fill:#1e1b4b,stroke:#4f46e5,stroke-width:2px,color:#ffffff;
+
+    Title["System Fidelity Map"]:::main
+
+    Live["🟢 Live Functional Components"]:::live
+    Sandbox["🟡 Deterministic Sandboxes<br/>(90s Presentation Flow)"]:::sandbox
+    Fallback["🔵 Fallback Mechanisms<br/>(Zero-Downtime Resilience)"]:::fallback
+
+    Title --> Live
+    Title --> Sandbox
+    Title --> Fallback
+
+    %% Live details
+    Live --> L1["Real-time Gemini 2.5 Flash/Pro APIs"]
+    Live --> L2["Gemini Imagen 3 Avatar Studio"]
+    Live --> L3["Live Workspace Git CLI Scanning"]
+    Live --> L4["Express API & Telemetry Ring"]
+    Live --> L5["Web Audio / Voice Engine"]
+
+    %% Sandbox details
+    Sandbox --> S1["7 Interactive Demo Scenarios"]
+    Sandbox --> S2["Pre-seeded Commit DAG & Diffs"]
+
+    %% Fallback details
+    Fallback --> F1["Offline Rule-Based State Machine"]
+    Fallback --> F2["Web Speech API Fallback"]
 ```
 
 ---

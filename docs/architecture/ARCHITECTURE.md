@@ -9,43 +9,34 @@
 
 ## 1. High-Level System Architecture
 
-```
-                                  +---------------------------------------+
-                                  |         DEVELOPER CLIENT (UI)         |
-                                  |  - React 19 + TypeScript + Vite       |
-                                  |  - Framer Motion Pet Stage            |
-                                  |  - Markdown Chat + Diff Highlighting  |
-                                  |  - Live Audio / Web Speech & Canvas   |
-                                  +-------------------+-------------------+
-                                                      |
-                                                      | HTTP REST & WebSocket (Port 3000)
-                                                      v
-+---------------------------------------------------------------------------------------------------------+
-|                                    GITPET BACKEND SERVICE ENGINE (Node.js)                              |
-|                                                                                                         |
-|  +-------------------------+     +-------------------------------+     +-----------------------------+  |
-|  |   Security Sanitizer    |     |    State & Scenario Engine    |     |      AI Gateway Client      |  |
-|  | - Token Redaction       |     | - Divergence calculator       |     | - Gemini 2.5 Flash / Pro    |  |
-|  | - Shell Injection Guard |     | - Health % scoring (0-100%)   |     | - Imagen 3 Studio           |  |
-|  | - Tool Scope Allowlist  |     | - Deterministic Demo Sandboxes|     | - Gemini Live Bidirectional |  |
-|  +-------------------------+     +-------------------------------+     +-----------------------------+  |
-|               |                                  |                                    |                 |
-|               +─────────────────+────────────────+────────────────────────────────────+                 |
-|                                 |                                                                       |
-|                                 v                                                                       |
-|  +---------------------------------------------------------------------------------------------------+  |
-|  |                 Operational Telemetry, Health Checks & Audit Ring Buffer (/api/audit-logs)         |  |
-|  +---------------------------------------------------------------------------------------------------+  |
-+---------------------------------------------------------------------------------------------------------+
-                    |                                                     |
-                    | (Safe, Read-Only CLI Scan)                          | (TLS 1.3 / Authenticated API Key)
-                    v                                                     v
-      +----------------------------+                        +----------------------------+
-      | LOCAL GIT ENGINE WORKSPACE |                        |    GOOGLE GEMINI CLOUD     |
-      | - branch / ahead / behind  |                        | - Structured JSON actions  |
-      | - working tree status      |                        | - Multimodal Live streams  |
-      | - human-confirmed writes   |                        | - Imagen 3 Generation      |
-      +----------------------------+                        +----------------------------+
+```mermaid
+graph TD
+    %% Styling
+    classDef main fill:#2a2b36,stroke:#7c3aed,stroke-width:2px,color:#ffffff;
+    classDef ext fill:#1e1e24,stroke:#4b5563,stroke-width:1px,color:#d1d5db;
+    classDef client fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff;
+
+    Dev["Developer (User)"]:::main
+    
+    subgraph GitPet Platform
+        UI["GitPet React Frontend<br/>(Vite App)"]:::client
+        BE["GitPet Node.js Backend<br/>(Secure Gateway Server)"]:::main
+    end
+
+    subgraph Local Workspace
+        GitCLI["Local Git CLI / Workspace"]:::ext
+    end
+
+    subgraph External Cloud Services
+        Gemini["Google Gemini Cloud API<br/>(LLM / Multimodal Live)"]:::ext
+        Imagen["Gemini Imagen 3 Studio<br/>(Asset Customizer)"]:::ext
+    end
+
+    Dev -->|Interacts / Voice / UI| UI
+    UI <-->|"HTTP REST & WebSocket (Port 3000)"| BE
+    BE <-->|Safe, Read-Only CLI Scan / Human-Confirmed Writes| GitCLI
+    BE <-->|TLS 1.3 / Redacted API Keys| Gemini
+    BE <-->|Image Customization Requests| Imagen
 ```
 
 ### 1.1 System Context Diagram (C4 Context)
