@@ -75,7 +75,7 @@ graph TD
     end
 
     Dev -->|Interacts / Voice / UI| UI
-    UI <-->|HTTP REST & WebSocket (Port 3000)| BE
+    UI <-->|"HTTP REST & WebSocket (Port 3000)"| BE
     BE <-->|Safe, Read-Only CLI Scan / Human-Confirmed Writes| GitCLI
     BE <-->|TLS 1.3 / Redacted API Keys| Gemini
     BE <-->|Image Customization Requests| Imagen
