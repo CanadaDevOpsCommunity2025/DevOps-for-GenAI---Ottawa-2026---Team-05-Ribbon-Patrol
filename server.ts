@@ -3,6 +3,8 @@ import http from 'http';
 import path from 'path';
 import dotenv from 'dotenv';
 import { execFile } from 'child_process';
+import { evaluateCommand } from './src/server/safety';
+import { basicAuth, isAuthConfigured } from './src/server/auth';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -12,9 +14,12 @@ import { LIVE_REPO, LIVE_REPO_BRANCHES } from './src/data/liveRepoConfig';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '25mb' }));
+
+// Optional; active only when GITPET_AUTH_USER/PASS are set.
+app.use(basicAuth());
 
 // Initialize GoogleGenAI client lazily or safely
 let genAI: GoogleGenAI | null = null;
@@ -490,7 +495,7 @@ app.get('/api/audit-logs', (req, res) => {
 function runGitCommand(
   args: string[],
   cwd: string = process.cwd(),
-  timeoutMs: number = 3500
+  timeoutMs: number = 15000
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
     execFile(
@@ -499,7 +504,7 @@ function runGitCommand(
       {
         cwd,
         timeout: timeoutMs,
-        maxBuffer: 1024 * 1024,
+        maxBuffer: 12 * 1024 * 1024,
         env: {
           ...process.env,
           LC_ALL: 'C',
@@ -714,7 +719,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
 
   // 6. Recent commit history
   const historyRes = await runGitCommand(
-    ['log', '-n', '12', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
+    ['log', '-n', '12', '--pretty=format:%H\x1f%h\x1f%s\x1f%an <%ae>\x1f%cr\x1f%P\x1f%D\x1f%aI'],
     workspaceRoot
   );
   const commitHistory: Array<{
@@ -723,6 +728,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     message: string;
     author: string;
     timestamp: string;
+    timestampIso?: string;
     parents?: string[];
     branchRef?: string;
   }> = [];
@@ -733,7 +739,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
   if (historyRes.exitCode === 0 && historyRes.stdout.trim()) {
     const lines = historyRes.stdout.trim().split('\n');
     for (let i = 0; i < lines.length; i++) {
-      const parts = lines[i].split('|');
+      const parts = lines[i].split('\x1f');
       if (parts.length >= 5) {
         const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
         const branchRef = parts[6] ? parts[6].trim() : undefined;
@@ -743,6 +749,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
           message: parts[2],
           author: parts[3],
           timestamp: parts[4],
+          timestampIso: parts[7],
           parents,
           branchRef,
         };
@@ -763,6 +770,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     message: string;
     author: string;
     timestamp: string;
+    timestampIso?: string;
     isLocal: boolean;
     parents?: string[];
     branchRef?: string;
@@ -774,6 +782,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
     message: string;
     author: string;
     timestamp: string;
+    timestampIso?: string;
     isRemote: boolean;
     parents?: string[];
     branchRef?: string;
@@ -781,13 +790,13 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
 
   if (upstream && aheadCount > 0) {
     const aheadRes = await runGitCommand(
-      ['log', '@{u}..HEAD', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
+      ['log', '@{u}..HEAD', '-n', '10', '--pretty=format:%H\x1f%h\x1f%s\x1f%an <%ae>\x1f%cr\x1f%P\x1f%D\x1f%aI'],
       workspaceRoot
     );
     if (aheadRes.exitCode === 0 && aheadRes.stdout.trim()) {
       const lines = aheadRes.stdout.trim().split('\n');
       for (const line of lines) {
-        const parts = line.split('|');
+        const parts = line.split('\x1f');
         if (parts.length >= 5) {
           const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
           const branchRef = parts[6] ? parts[6].trim() : undefined;
@@ -797,6 +806,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
             message: parts[2],
             author: parts[3],
             timestamp: parts[4],
+            timestampIso: parts[7],
             isLocal: true,
             parents,
             branchRef,
@@ -808,13 +818,13 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
 
   if (upstream && behindCount > 0) {
     const behindRes = await runGitCommand(
-      ['log', 'HEAD..@{u}', '-n', '10', '--pretty=format:%H|%h|%s|%an <%ae>|%cr|%P|%D'],
+      ['log', 'HEAD..@{u}', '-n', '10', '--pretty=format:%H\x1f%h\x1f%s\x1f%an <%ae>\x1f%cr\x1f%P\x1f%D\x1f%aI'],
       workspaceRoot
     );
     if (behindRes.exitCode === 0 && behindRes.stdout.trim()) {
       const lines = behindRes.stdout.trim().split('\n');
       for (const line of lines) {
-        const parts = line.split('|');
+        const parts = line.split('\x1f');
         if (parts.length >= 5) {
           const parents = parts[5] ? parts[5].trim().split(/\s+/).filter(Boolean) : [];
           const branchRef = parts[6] ? parts[6].trim() : undefined;
@@ -824,6 +834,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
             message: parts[2],
             author: parts[3],
             timestamp: parts[4],
+            timestampIso: parts[7],
             isRemote: true,
             parents,
             branchRef,
@@ -834,7 +845,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
   }
 
   // 8. Stashes
-  const stashRes = await runGitCommand(['stash', 'list', '--pretty=format:%gd|%cr|%gs'], workspaceRoot);
+  const stashRes = await runGitCommand(['stash', 'list', '--pretty=format:%gd\x1f%cr\x1f%gs'], workspaceRoot);
   const stashes: Array<{
     id: string;
     index: number;
@@ -847,7 +858,7 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
   if (stashRes.exitCode === 0 && stashRes.stdout.trim()) {
     const lines = stashRes.stdout.trim().split('\n');
     for (let i = 0; i < lines.length; i++) {
-      const parts = lines[i].split('|');
+      const parts = lines[i].split('\x1f');
       if (parts.length >= 3) {
         stashes.push({
           id: `stash_${i}`,
@@ -1185,9 +1196,12 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
         });
 
         const textOutput = response.text || '';
+        // The rule engine is a fallback for when the model is unavailable, not
+        // an override of a successful model response.
         const ruleBased = generateRuleBasedAction(state, userPrompt);
 
         const recAction = ruleBased.recommendedAction;
+        const safety = evaluateCommand(recAction?.command ?? '', state);
         const duration = Date.now() - startTime;
         logRequestAudit(req.path, requestId, 200, duration, `model: ${modelName}`);
 
@@ -1196,6 +1210,7 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: $
           success: true,
           modelUsed: modelName,
           role,
+          safety,
           reply: textOutput,
           explanation: textOutput,
           summary: recAction?.summary || textOutput.slice(0, 120),
@@ -1359,12 +1374,18 @@ Respond in valid JSON with:
           if (parsed.recommendedAction && !parsed.recommendedAction.affectedFiles) {
             parsed.recommendedAction.affectedFiles = (state.workingTree || []).map((f: any) => f.path);
           }
+          // Check the model's own suggestion against observed repository state
+          // before it reaches the UI. The prompt asks for safe commands; this
+          // is what actually enforces it.
+          const safety = evaluateCommand(parsed?.recommendedAction?.command ?? '', state);
+
           return res.json({
             requestId,
             success: true,
             source: 'gemini',
             modelUsed: modelName,
             ...parsed,
+            safety,
           });
         }
       } catch (geminiErr: any) {
@@ -1372,7 +1393,7 @@ Respond in valid JSON with:
       }
     }
 
-    // Deterministic fallback
+    // Deterministic fallback — held to the same policy as the model path.
     const ruleBased = generateRuleBasedAction(state, userMessage);
     return res.json({
       requestId,
@@ -1380,6 +1401,7 @@ Respond in valid JSON with:
       source: 'deterministic_engine',
       modelUsed: 'deterministic',
       ...ruleBased,
+      safety: evaluateCommand(ruleBased?.recommendedAction?.command ?? '', state),
     });
   } catch (error) {
     console.error('Error in /api/gitpet/analyze:', error);
