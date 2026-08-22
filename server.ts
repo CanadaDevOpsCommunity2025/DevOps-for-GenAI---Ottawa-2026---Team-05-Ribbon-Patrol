@@ -501,7 +501,7 @@ app.get('/api/health', (req, res) => {
     geminiAvailable: !!process.env.GEMINI_API_KEY,
     writesEnabled: writesEnabled(),
     workspaceRoot: workspaceRootPath(),
-    geminiModelPrimary: 'gemini-2.5-flash',
+    geminiModelPrimary: 'gemini-3.6-flash',
     geminiModelPro: 'gemini-2.5-pro',
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
@@ -1289,21 +1289,21 @@ async function handleChatRequest(req: express.Request, res: express.Response) {
     let quotaExhausted = false;
 
     // Model selection routing (Official Google Gemini models)
-    let modelName = 'gemini-2.5-flash';
+    let modelName = 'gemini-3.6-flash';
     if (
       effectiveTier === 'deep' ||
       userPrompt.toLowerCase().includes('complex') ||
       userPrompt.toLowerCase().includes('rebase conflict') ||
       userPrompt.toLowerCase().includes('cherry-pick')
     ) {
-      modelName = 'gemini-2.5-pro';
+      modelName = 'gemini-2.5-pro'; // keep pro tier unchanged for now
     } else if (
       effectiveTier === 'fast' ||
       userPrompt.toLowerCase().includes('quick') ||
       userPrompt.toLowerCase().includes('fast') ||
       userPrompt.toLowerCase().includes('one liner')
     ) {
-      modelName = 'gemini-2.5-flash';
+      modelName = 'gemini-3.6-flash';
     }
 
     const ai = getGenAI();
@@ -1467,7 +1467,7 @@ app.post('/api/gitpet/analyze', async (req, res) => {
     }
 
     const ai = getGenAI();
-    let modelName = tier === 'deep' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+    let modelName = tier === 'deep' ? 'gemini-2.5-pro' : 'gemini-3.6-flash';
 
     if (ai) {
       try {
