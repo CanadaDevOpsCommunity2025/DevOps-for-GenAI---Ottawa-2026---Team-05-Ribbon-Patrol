@@ -42,21 +42,52 @@ function toCommitInfo(c: GhCommit, flags: { isRemote?: boolean; isLocal?: boolea
   };
 }
 
+// GitHub's unauthenticated rate limit is only 60 requests/hour per IP, shared
+// across every branch fetch this server makes. A short in-memory cache keeps
+// repeated page loads / branch re-selection during a demo session from
+// burning through that quota on identical requests.
+const CACHE_TTL_MS = 90_000;
+const responseCache = new Map<string, { expiresAt: number; data: unknown }>();
+
+export class GitHubRateLimitError extends Error {
+  resetAt: Date;
+  constructor(resetAt: Date) {
+    super(`GitHub API rate limit exceeded. Resets at ${resetAt.toLocaleTimeString()}.`);
+    this.resetAt = resetAt;
+  }
+}
+
 async function ghFetch<T>(path: string): Promise<T> {
+  const cached = responseCache.get(path);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data as T;
+  }
+
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'gitpet-app',
   };
   // Optional: set GITHUB_TOKEN in .env to raise the unauthenticated 60/hr rate
-  // limit. Never required for a public repo — never hardcode a token here.
+  // limit to 5000/hr. Never required for a public repo — never hardcode a
+  // token here.
   if (process.env.GITHUB_TOKEN) {
     headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
   }
+
   const res = await fetch(`${GITHUB_API}${path}`, { headers });
+
   if (!res.ok) {
+    if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') {
+      const resetHeader = res.headers.get('x-ratelimit-reset');
+      const resetAt = resetHeader ? new Date(Number(resetHeader) * 1000) : new Date(Date.now() + 60 * 60 * 1000);
+      throw new GitHubRateLimitError(resetAt);
+    }
     throw new Error(`GitHub API ${path} failed: ${res.status} ${res.statusText}`);
   }
-  return res.json() as Promise<T>;
+
+  const data = (await res.json()) as T;
+  responseCache.set(path, { expiresAt: Date.now() + CACHE_TTL_MS, data });
+  return data;
 }
 
 export async function fetchLiveRepositoryState(branchName: string): Promise<RepositoryState> {

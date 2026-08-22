@@ -6,8 +6,11 @@ import {
   RefreshCw,
   Layers,
   Activity,
+  Github,
+  Loader2,
 } from 'lucide-react';
 import { ScenarioPreset, LiveScanState } from '../types';
+import { LIVE_REPO, LIVE_REPO_BRANCHES } from '../data/liveRepoConfig';
 
 interface ScenarioSwitcherProps {
   scenarios: ScenarioPreset[];
@@ -22,6 +25,9 @@ interface ScenarioSwitcherProps {
   onToggleLiveMode?: () => void;
   onRefreshLive?: () => void;
   liveScanState?: LiveScanState;
+  activeLiveBranch: string | null;
+  isLiveLoading: boolean;
+  onSelectLiveBranch: (branch: string) => void;
 }
 
 export const ScenarioSwitcher: React.FC<ScenarioSwitcherProps> = ({
@@ -37,6 +43,9 @@ export const ScenarioSwitcher: React.FC<ScenarioSwitcherProps> = ({
   onToggleLiveMode,
   onRefreshLive,
   liveScanState,
+  activeLiveBranch,
+  isLiveLoading,
+  onSelectLiveBranch,
 }) => {
   return (
     <div
@@ -183,6 +192,43 @@ export const ScenarioSwitcher: React.FC<ScenarioSwitcherProps> = ({
             </button>
           </div>
         )}
+      </div>
+
+      {/* Live Repo: real GitHub data from the public test fixture */}
+      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100 flex-wrap">
+        <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 px-1">
+          <Github className="w-3.5 h-3.5 text-slate-500" />
+          <span>Live Repo:</span>
+        </div>
+
+        <select
+          value={activeLiveBranch || ''}
+          onChange={(e) => e.target.value && onSelectLiveBranch(e.target.value)}
+          disabled={isLiveLoading}
+          className={`text-xs font-semibold rounded-lg border px-2 py-1 bg-white cursor-pointer ${
+            activeLiveBranch ? 'border-blue-300 text-blue-800' : 'border-slate-200 text-slate-600'
+          }`}
+        >
+          <option value="" disabled>
+            Select a branch…
+          </option>
+          {LIVE_REPO_BRANCHES.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+
+        {isLiveLoading && <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />}
+
+        <a
+          href={`https://github.com/${LIVE_REPO.owner}/${LIVE_REPO.repo}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[11px] text-slate-400 hover:text-blue-600 underline decoration-dotted ml-1"
+        >
+          {LIVE_REPO.owner}/{LIVE_REPO.repo}
+        </a>
       </div>
     </div>
   );
