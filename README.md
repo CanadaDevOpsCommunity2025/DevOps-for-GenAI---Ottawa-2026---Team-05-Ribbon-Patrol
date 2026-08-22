@@ -145,11 +145,22 @@ To satisfy the **DevOps for GenAI Hackathon 2026 Production Standards**, compreh
 
 ---
 
-## 🤖 AI Usage & Assisted Tooling Disclosure
+## 🤖 8. AI Usage Disclosure
 
-In accordance with Hackathon Guideline **P-06 (AI Transparency)**:
-- **Runtime AI Models:** Powered by **Google Gemini 2.5 Flash** (default high-throughput reasoning), **Gemini 2.5 Pro** (deep architecture analysis), **Imagen 3** (avatar image generation), and **Gemini Live API** (low-latency bidirectional audio/video streaming).
-- **Development & Coding Assistance:** Development workflow was accelerated using AI pair-programming tools (Google Gemini / Antigravity) for rapid UI component structuring, scenario test mocking, and documentation formatting. All architectural boundaries, safety gates, and test suites were audited and verified by the team.
+In accordance with Hackathon Guideline **P-06 (AI Transparency)** and **Item 8 (AI Usage Disclosure)**, AI tools assisted the development process as follows:
+
+### Runtime AI Integration (Application Level)
+- **Google Gemini 2.5 Flash / Pro:** Serves as the primary/secondary LLM inference engine for DevSecOps guidance and scenario tutoring.
+- **Imagen 3:** Powering the Pet Avatar Studio for pixel-art mascot sprite generation.
+- **Gemini Live API:** Handles low-latency bidirectional streaming for live audio/vision interactions.
+
+### Development & Coding Assistance (Human-in-the-Loop)
+- **Google AI Studio:** Used for rapid prompt prototyping, system instruction iteration, and raw model parameter tuning.
+- **Antigravity (Gemini):** Used as pair-programming assistant for boilerplate typescript setup, UI styling, and React component structuring.
+- **Claude Code:** Assisted in writing automated Vitest unit/integration tests and refining safety sanitizers.
+- **Microsoft Copilot:** Utilized for real-time code completions, formatting, and markdown documentation drafting.
+
+All AI-suggested code, safety filters, and test boundaries were fully reviewed, audited, and approved by the team.
 
 ---
 

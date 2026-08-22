@@ -295,3 +295,14 @@ To ensure complete delivery within the eight-hour sprint window, the following a
 * Autonomous actions or background state changes.
 * Saved voice recordings, voice cloning, or background microphone capture.
 * Production asset moderation workflows or public sharing of generated pet images.
+
+---
+
+### AI Usage Disclosure
+
+In accordance with Hackathon Guideline **P-06 (AI Transparency)** and **Item 8 (AI Usage Disclosure)**, development was assisted by the following AI tools:
+* **Google AI Studio:** Prompt structure creation and validation.
+* **Antigravity (Gemini):** React components pair-programming and UI design.
+* **Claude Code:** Test suite drafting and safety validations.
+* **Microsoft Copilot:** Syntax autocompletion and documentation support.
+
