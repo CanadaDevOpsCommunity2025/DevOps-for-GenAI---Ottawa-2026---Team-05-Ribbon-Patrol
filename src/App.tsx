@@ -6,9 +6,6 @@ import { ChatStream } from './components/ChatStream';
 import { ScenarioSwitcher } from './components/ScenarioSwitcher';
 import { RepositoryDrawer } from './components/RepositoryDrawer';
 import { PreviewChangesModal } from './components/PreviewChangesModal';
-import { PitchDeckModal } from './components/PitchDeckModal';
-import { ImageStudioModal } from './components/ImageStudioModal';
-import { LiveVoiceModal } from './components/LiveVoiceModal';
 import { GuidedDemoBar } from './components/GuidedDemoBar';
 import { QuickPaletteModal } from './components/QuickPaletteModal';
 import {
@@ -28,7 +25,6 @@ import {
   CONFLICT_SCENARIO,
   UNSAFE_LOSS_RISK_SCENARIO,
 } from './data/mockScenarios';
-import { LIVE_REPO } from './data/liveRepoConfig';
 import {
   RepositoryState,
   ChatMessage,
@@ -42,48 +38,13 @@ import {
   LiveScanState,
 } from './types';
 
-// Neutral placeholder shown for the brief moment before the live repo fetch
-// on mount resolves, so the app never flashes acme-corp mock data by default.
-const LIVE_LOADING_STATE: RepositoryState = {
-  repoName: `${LIVE_REPO.owner}/${LIVE_REPO.repo}`,
-  currentBranch: {
-    name: LIVE_REPO.defaultBranch,
-    upstream: `origin/${LIVE_REPO.defaultBranch}`,
-    aheadCount: 0,
-    behindCount: 0,
-    isDetached: false,
-    isStale: false,
-    lastCommitMessage: 'Connecting to live repository…',
-    lastCommitHash: '',
-    lastActivity: '',
-  },
-  allBranches: [],
-  workingTree: [],
-  stashes: [],
-  localCommitsAhead: [],
-  remoteCommitsBehind: [],
-  commitHistory: [],
-  healthPercentage: 100,
-  healthLevel: 'Healthy',
-  primarySymptom: 'clean_sync',
-  symptomTitle: 'Connecting…',
-  symptomDescription: `Loading live state from ${LIVE_REPO.owner}/${LIVE_REPO.repo}.`,
-  operatorMeaning: '',
-};
-
 export default function App() {
-  const [activeScenarioId, setActiveScenarioId] = useState<string>('live:loading');
-  const [repoState, setRepoState] = useState<RepositoryState>(LIVE_LOADING_STATE);
+  const [activeScenarioId, setActiveScenarioId] = useState<string>(MVP_SCENARIO.id);
+  const [repoState, setRepoState] = useState<RepositoryState>(MVP_SCENARIO.state);
   const [practiceStats, setPracticeStats] = useState<PracticeStats>(INITIAL_PRACTICE_STATS);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [isPitchDeckOpen, setIsPitchDeckOpen] = useState<boolean>(false);
-  const [isImageStudioOpen, setIsImageStudioOpen] = useState<boolean>(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
-  const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<ChatRole>('byte_mascot');
   const [selectedTier, setSelectedTier] = useState<ModelTier>('general');
-  const [activeLiveBranch, setActiveLiveBranch] = useState<string | null>(null);
-  const [isLiveLoading, setIsLiveLoading] = useState<boolean>(false);
 
   // Live Workspace Scanner State
   const [isLiveMode, setIsLiveMode] = useState<boolean>(false);
@@ -101,7 +62,7 @@ export default function App() {
   const [demoElapsedSeconds, setDemoElapsedSeconds] = useState<number>(0);
   const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState<number | null>(null);
   
-  // Quick Palette & Audio State (Phase 2.4)
+  // Quick Palette & Audio State
   const [isQuickPaletteOpen, setIsQuickPaletteOpen] = useState<boolean>(false);
   const [isAudioMutedState, setIsAudioMutedState] = useState<boolean>(() => isAudioMuted());
   const [petTriggerTimestamp, setPetTriggerTimestamp] = useState<number>(0);
@@ -137,7 +98,7 @@ export default function App() {
     setIsAudioMutedState(next);
   };
 
-  // Global Keyboard Shortcuts (Phase 2.4)
+  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const isMac = typeof navigator !== 'undefined' && navigator.platform?.toUpperCase().includes('MAC');
@@ -173,29 +134,13 @@ export default function App() {
           setPreviewAction(null);
           return;
         }
-        // Layer 2: Other Open Modals
-        if (isVoiceModalOpen) {
-          e.preventDefault();
-          setIsVoiceModalOpen(false);
-          return;
-        }
-        if (isImageStudioOpen) {
-          e.preventDefault();
-          setIsImageStudioOpen(false);
-          return;
-        }
-        if (isPitchDeckOpen) {
-          e.preventDefault();
-          setIsPitchDeckOpen(false);
-          return;
-        }
-        // Layer 3: Quick Palette
+        // Layer 2: Quick Palette
         if (isQuickPaletteOpen) {
           e.preventDefault();
           setIsQuickPaletteOpen(false);
           return;
         }
-        // Layer 4: Repository Drawer
+        // Layer 3: Repository Drawer
         if (isDrawerOpen) {
           e.preventDefault();
           setIsDrawerOpen(false);
@@ -209,10 +154,7 @@ export default function App() {
         if (
           !isEditable &&
           !isQuickPaletteOpen &&
-          !previewAction &&
-          !isVoiceModalOpen &&
-          !isImageStudioOpen &&
-          !isPitchDeckOpen
+          !previewAction
         ) {
           e.preventDefault();
           handlePetByte();
@@ -226,9 +168,6 @@ export default function App() {
     };
   }, [
     previewAction,
-    isVoiceModalOpen,
-    isImageStudioOpen,
-    isPitchDeckOpen,
     isQuickPaletteOpen,
     isDrawerOpen,
   ]);
@@ -237,16 +176,24 @@ export default function App() {
     { id: string; command: string; timestamp: string; description: string }[]
   >([]);
 
-  // Initial message while the live repo fetch (see effect below) is in flight.
-  // Replaced by handleLoadLiveRepo's own message once real data arrives.
+  // Initial welcome message
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome_msg',
       sender: 'assistant',
       role: 'byte_mascot',
-      modelUsed: 'gemini-3.5-flash',
+      modelUsed: 'gemini-2.5-flash',
       timestamp: 'Just now',
-      text: `Hello! I'm **Byte**, your ambient repository companion.\n\nConnecting to **${LIVE_REPO.owner}/${LIVE_REPO.repo}** to pull real branch and commit data…`,
+      text: `Hello! I'm **Byte**, your ambient repository companion.\n\nI monitor your repository's branch drift, uncommitted working tree diffs, and work-loss hazards in real-time.\n\nClick **🚀 90s Demo** to see the full walkthrough, ask me for a status report, or test any scenario!`,
+      evidenceSummary: {
+        symptom: MVP_SCENARIO.state.symptomTitle,
+        healthLevel: MVP_SCENARIO.state.healthLevel,
+        evidencePoints: [
+          `Branch: ${MVP_SCENARIO.state.currentBranch.name}`,
+          `Behind: ${MVP_SCENARIO.state.currentBranch.behindCount} commits | Ahead: ${MVP_SCENARIO.state.currentBranch.aheadCount}`,
+          `Uncommitted files: ${MVP_SCENARIO.state.workingTree.length}`,
+        ],
+      },
     },
   ]);
 
@@ -333,7 +280,7 @@ export default function App() {
             id: `msg_asst_${Date.now()}`,
             sender: 'assistant',
             role: activeRole,
-            modelUsed: 'gemini-3.5-flash',
+            modelUsed: 'gemini-2.5-flash',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             text: analyzeData.explanation,
             evidenceSummary: {
@@ -352,7 +299,7 @@ export default function App() {
         id: `msg_asst_${Date.now()}`,
         sender: 'assistant',
         role: activeRole,
-        modelUsed: 'gemini-3.1-flash-lite',
+        modelUsed: 'gemini-2.5-flash',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         text: `Based on current repository signals, branch **${repoState.currentBranch.name}** has ${repoState.currentBranch.behindCount} commits behind upstream with ${repoState.workingTree.length} uncommitted files.\n\nRecommended: Run \`git stash push -m "gitpet: save"\` before pulling.`,
         evidenceSummary: {
@@ -532,7 +479,7 @@ export default function App() {
             id: `msg_live_unavail_${Date.now()}`,
             sender: 'assistant',
             role: selectedRole,
-            modelUsed: 'gemini-3.5-flash',
+            modelUsed: 'gemini-2.5-flash',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             text: `⚠️ **Workspace Unavailable**: The active folder is not inside a Git work tree. You can initialize one with \`git init\` or switch back to **Sandbox Presets** to test scenarios.`,
           },
@@ -568,7 +515,7 @@ export default function App() {
               id: `live_switch_${Date.now()}`,
               sender: 'assistant',
               role: selectedRole,
-              modelUsed: 'gemini-3.5-flash',
+              modelUsed: 'gemini-2.5-flash',
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               text: summaryText,
               evidenceSummary: {
@@ -613,7 +560,7 @@ export default function App() {
           id: `sandbox_switch_${Date.now()}`,
           sender: 'assistant',
           role: selectedRole,
-          modelUsed: 'gemini-3.5-flash',
+          modelUsed: 'gemini-2.5-flash',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: `📦 **Switched back to Sandbox Mode**.\n\nRestored previous scenario preset. You can continue simulating anomalies and test safe actions risk-free.`,
         },
@@ -654,78 +601,6 @@ export default function App() {
       handleSendMessage(scenario.samplePrompt, selectedRole, selectedTier);
     }, 300);
   };
-
-  // Load real repository state from the public GitHub test fixture
-  // (farisnour/gitpet-acme-corp-ecommerce-store) instead of a mock scenario.
-  const handleLoadLiveRepo = async (branch: string) => {
-    setIsLiveLoading(true);
-    try {
-      const res = await fetch(`/api/repo/live?branch=${encodeURIComponent(branch)}`);
-      const data = await res.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to load live repository state');
-      }
-
-      setActiveLiveBranch(branch);
-      setActiveScenarioId(`live:${branch}`);
-      setRepoState(data.state);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `live_switch_${Date.now()}`,
-          sender: 'assistant',
-          role: selectedRole,
-          modelUsed: 'github_live',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `🔗 Loaded **live** data from [${data.repo}](${data.repoUrl}) — branch \`${branch}\`.\n\n${data.state.symptomDescription}`,
-          evidenceSummary: {
-            symptom: data.state.symptomTitle,
-            healthLevel: data.state.healthLevel,
-            evidencePoints: [
-              data.state.symptomDescription,
-              `Ahead: ${data.state.currentBranch.aheadCount} | Behind: ${data.state.currentBranch.behindCount} (vs ${LIVE_REPO.defaultBranch})`,
-              `Health Score: ${data.state.healthPercentage}%`,
-            ],
-          },
-        },
-      ]);
-
-      setTimeout(() => {
-        handleSendMessage(`Status report for the live ${branch} branch! What needs attention?`, selectedRole, selectedTier);
-      }, 300);
-    } catch (err) {
-      console.warn('Failed to load live repo state:', err);
-      // Fall back to a mock scenario so the app stays usable if GitHub is
-      // unreachable (offline dev, rate limit) instead of leaving the
-      // "Connecting…" placeholder up indefinitely.
-      setActiveScenarioId(MVP_SCENARIO.id);
-      setRepoState(MVP_SCENARIO.state);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `live_err_${Date.now()}`,
-          sender: 'system',
-          timestamp: 'Just now',
-          text: `⚠️ Could not reach GitHub for live repo data (rate limit or network issue). Falling back to a mock scenario — pick a branch above to retry.`,
-        },
-      ]);
-    } finally {
-      setIsLiveLoading(false);
-    }
-  };
-
-  // Default on load: pull real state from the public GitHub test fixture
-  // instead of starting on a hardcoded mock scenario. Guarded against
-  // StrictMode's dev-only double-invoke of mount effects.
-  const hasLoadedLiveOnMount = React.useRef(false);
-  useEffect(() => {
-    if (hasLoadedLiveOnMount.current) return;
-    hasLoadedLiveOnMount.current = true;
-    handleLoadLiveRepo(LIVE_REPO.defaultBranch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Sandbox Anomaly Injectors
   const handleInjectRemoteCommit = () => {
@@ -884,7 +759,7 @@ export default function App() {
           id: `demo_clean_msg_${Date.now()}`,
           sender: 'assistant',
           role: 'byte_mascot',
-          modelUsed: 'gemini-3.5-flash',
+          modelUsed: 'gemini-2.5-flash',
           timestamp: 'Just now',
           text: '🟢 **Pristine Repository**: Branch **main** is 100% synchronized with upstream origin/main with a completely clean working tree.\n\nNotice how Byte is completely relaxed, tail is wagging happily, and health is 100%.',
           evidenceSummary: {
@@ -923,7 +798,7 @@ export default function App() {
           id: `demo_report_${Date.now()}`,
           sender: 'assistant',
           role: 'byte_mascot',
-          modelUsed: 'gemini-3.5-flash',
+          modelUsed: 'gemini-2.5-flash',
           timestamp: 'Just now',
           text: `I noticed **${MVP_SCENARIO.state.currentBranch.name}** is **3 commits behind** ${MVP_SCENARIO.state.currentBranch.upstream} while you have **2 uncommitted files** in your working directory. Stashing your edits before pulling avoids mixing unfinished work with upstream changes and eliminates merge accident risk.`,
           evidenceSummary: {
@@ -988,9 +863,6 @@ export default function App() {
         }}
         onToggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
         onOpenQuickPalette={() => setIsQuickPaletteOpen(true)}
-        onOpenPitchDeck={() => setIsPitchDeckOpen(true)}
-        onOpenImageStudio={() => setIsImageStudioOpen(true)}
-        onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
         onStartDemo={handleStartDemo}
         isDemoActive={isDemoActive}
         isDrawerOpen={isDrawerOpen}
@@ -1041,9 +913,6 @@ export default function App() {
           onToggleLiveMode={handleToggleLiveMode}
           onRefreshLive={handleFetchLiveStatus}
           liveScanState={liveScanState}
-          activeLiveBranch={activeLiveBranch}
-          isLiveLoading={isLiveLoading}
-          onSelectLiveBranch={handleLoadLiveRepo}
         />
 
         {/* Core Layout Grid: Pet Stage (Left) + Chat Stream (Right) */}
@@ -1052,9 +921,6 @@ export default function App() {
           <div className="lg:col-span-5 space-y-3">
             <PetStage
               state={repoState}
-              customAvatarUrl={customAvatarUrl}
-              onOpenImageStudio={() => setIsImageStudioOpen(true)}
-              onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
               onPetClick={handlePetByte}
               petTriggerTimestamp={petTriggerTimestamp}
             />
@@ -1092,7 +958,6 @@ export default function App() {
               setSelectedRole={setSelectedRole}
               selectedTier={selectedTier}
               setSelectedTier={setSelectedTier}
-              onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
             />
           </div>
         </div>
@@ -1116,36 +981,6 @@ export default function App() {
         state={repoState}
         auditHistory={auditHistory}
         onRollbackLastAction={handleRollbackLastAction}
-      />
-
-      {/* Pitch Deck & 90-Second Demo Modal */}
-      <PitchDeckModal
-        isOpen={isPitchDeckOpen}
-        onClose={() => setIsPitchDeckOpen(false)}
-        onRunDemoStep={handleRunDemoStep}
-        demoStep={demoStep}
-      />
-
-      {/* Image & Mascot Studio Modal (gemini-3.1-flash-image) */}
-      <ImageStudioModal
-        isOpen={isImageStudioOpen}
-        onClose={() => setIsImageStudioOpen(false)}
-        onSelectAvatar={(imageUrl) => {
-          setCustomAvatarUrl(imageUrl);
-        }}
-        currentAvatarUrl={customAvatarUrl}
-      />
-
-      {/* Live Voice Conversation Modal (gemini-3.1-flash-live-preview) */}
-      <LiveVoiceModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => setIsVoiceModalOpen(false)}
-        repoState={repoState}
-        onExecuteAction={() => {
-          if (messages[0]?.recommendedAction) {
-            handleExecuteAction(messages[0].recommendedAction);
-          }
-        }}
       />
 
       {/* Quick Command Palette Modal (Cmd+K / Ctrl+K) */}
@@ -1172,9 +1007,6 @@ export default function App() {
         isLiveMode={isLiveMode}
         onToggleLiveMode={handleToggleLiveMode}
         onRefreshLive={handleFetchLiveStatus}
-        onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-        onOpenImageStudio={() => setIsImageStudioOpen(true)}
-        onOpenPitchDeck={() => setIsPitchDeckOpen(true)}
         isAudioMuted={isAudioMutedState}
         onToggleAudio={handleToggleAudio}
         onPetByte={handlePetByte}

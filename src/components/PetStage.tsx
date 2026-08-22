@@ -19,24 +19,15 @@ interface PetStageProps {
   state: RepositoryState;
   onPetClick?: () => void;
   petTriggerTimestamp?: number;
-  customAvatarUrl?: string | null;
-  onOpenImageStudio?: () => void;
-  onOpenVoiceModal?: () => void;
 }
 
 export const PetStage: React.FC<PetStageProps> = ({
   state,
   onPetClick,
   petTriggerTimestamp,
-  customAvatarUrl,
-  onOpenImageStudio,
-  onOpenVoiceModal,
 }) => {
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const [isHovered, setIsHovered] = useState(false);
-  const [avatarMode, setAvatarMode] = useState<'animated' | 'custom'>(
-    customAvatarUrl ? 'custom' : 'animated'
-  );
 
   // Trigger floating hearts on programmatic pet trigger (e.g. from Space shortcut)
   useEffect(() => {
@@ -223,40 +214,14 @@ export const PetStage: React.FC<PetStageProps> = ({
             className="absolute w-40 h-40 rounded-full pointer-events-none"
           />
 
-          {/* Render Either Custom AI Generated Avatar or Interactive Vector Pet */}
-          {customAvatarUrl && avatarMode === 'custom' ? (
-            <motion.div
-              className={`relative flex items-center justify-center transition-all duration-500 ${
-                isUnsafe ? 'grayscale contrast-125' : ''
-              }`}
-              animate={{ y: isUnsafe ? 0 : isHovered ? -6 : [0, -4, 0] }}
-              transition={
-                isUnsafe
-                  ? { duration: 0 }
-                  : { duration: 2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }
-              }
-            >
-              <div className="relative w-40 h-40 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-2 ring-slate-900/10 bg-slate-900">
-                <img
-                  src={customAvatarUrl}
-                  alt="Custom Mascot Avatar"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 bg-slate-900/80 backdrop-blur-xs text-[9px] font-mono font-bold text-amber-300 rounded-full border border-amber-500/30 flex items-center gap-1">
-                  <Sparkles className="w-2.5 h-2.5" /> AI Skin
-                </div>
-              </div>
-            </motion.div>
-          ) : (
-            <div className={`transition-all duration-500 ${isUnsafe ? 'grayscale contrast-125' : ''}`}>
-              <PetGraphic
-                symptom={state.primarySymptom}
-                healthLevel={state.healthLevel}
-                isHovered={isHovered}
-              />
-            </div>
-          )}
+          {/* Interactive Vector Pet */}
+          <div className={`transition-all duration-500 ${isUnsafe ? 'grayscale contrast-125' : ''}`}>
+            <PetGraphic
+              symptom={state.primarySymptom}
+              healthLevel={state.healthLevel}
+              isHovered={isHovered}
+            />
+          </div>
         </div>
 
         {/* Symptom diagnosis caption */}
@@ -268,54 +233,10 @@ export const PetStage: React.FC<PetStageProps> = ({
             {state.operatorMeaning}
           </p>
         </div>
-
-        {/* Quick Stage Controls */}
-        <div className="mt-3.5 flex flex-wrap items-center justify-center gap-1.5">
-          {customAvatarUrl && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setAvatarMode(avatarMode === 'custom' ? 'animated' : 'custom');
-              }}
-              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Layers className="w-3 h-3 text-slate-600" />
-              <span>{avatarMode === 'custom' ? 'View Vector Byte' : 'View AI Avatar'}</span>
-            </button>
-          )}
-
-          {onOpenImageStudio && (
-            <button
-              id="stage-open-image-studio-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenImageStudio();
-              }}
-              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Wand2 className="w-3 h-3 text-slate-500" />
-              <span>Mascot Studio</span>
-            </button>
-          )}
-
-          {onOpenVoiceModal && (
-            <button
-              id="stage-open-voice-modal-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenVoiceModal();
-              }}
-              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Mic className="w-3 h-3 text-indigo-600" />
-              <span>Talk to Byte</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Floating hint at bottom */}
-      <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2.5 mt-1">
+      <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-2.5 mt-2">
         <span className="flex items-center gap-1.5 flex-wrap">
           <Info className="w-3 h-3 text-slate-400" />
           <span>Click Byte or press</span>

@@ -1,24 +1,17 @@
 import React, { useState } from 'react';
 import {
   GitBranch,
-  GitPullRequest,
   Flame,
   ShieldCheck,
-  FolderGit2,
   ChevronDown,
   Layers,
-  Presentation,
   CheckCircle2,
-  AlertCircle,
-  HelpCircle,
   Award,
-  Wand2,
-  Mic,
-  Activity,
   RefreshCw,
   Search,
   Volume2,
   VolumeX,
+  GitPullRequest,
 } from 'lucide-react';
 import { RepositoryState, PracticeStats, LiveScanState } from '../types';
 
@@ -28,9 +21,6 @@ interface TopBarProps {
   onSelectBranch: (branch: string) => void;
   onToggleDrawer: () => void;
   onOpenQuickPalette?: () => void;
-  onOpenPitchDeck: () => void;
-  onOpenImageStudio: () => void;
-  onOpenVoiceModal: () => void;
   onStartDemo?: () => void;
   isDemoActive?: boolean;
   isDrawerOpen: boolean;
@@ -47,9 +37,6 @@ export const TopBar: React.FC<TopBarProps> = ({
   onSelectBranch,
   onToggleDrawer,
   onOpenQuickPalette,
-  onOpenPitchDeck,
-  onOpenImageStudio,
-  onOpenVoiceModal,
   onStartDemo,
   isDemoActive = false,
   isDrawerOpen,
@@ -72,7 +59,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       id="gitpet-header"
       className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 py-2.5 transition-all"
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Left Section: Brand Logo + Repo & Branch Selector + Status */}
         <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           {/* Brand Mark */}
@@ -284,7 +271,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               id="topbar-launch-demo-btn"
               onClick={onStartDemo}
-              className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-all shadow-2xs cursor-pointer ${
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all shadow-2xs cursor-pointer ${
                 isDemoActive
                   ? 'bg-indigo-600 text-white border-indigo-500 ring-2 ring-indigo-400/30'
                   : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-200'
@@ -292,42 +279,9 @@ export const TopBar: React.FC<TopBarProps> = ({
               title="Launch 90-Second Guided Demo"
             >
               <span>🚀</span>
-              <span className="hidden sm:inline">90s Demo</span>
+              <span className="font-bold">90s Demo</span>
             </button>
           )}
-
-          {/* Avatar Studio Action */}
-          <button
-            id="open-image-studio-button"
-            onClick={onOpenImageStudio}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-            title="Design & Edit Custom Mascot Skins (gemini-3.1-flash-image)"
-          >
-            <Wand2 className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden md:inline">Avatar Studio</span>
-          </button>
-
-          {/* Live Voice Action */}
-          <button
-            id="open-live-voice-button"
-            onClick={onOpenVoiceModal}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-            title="Real-time Live Voice (gemini-3.1-flash-live-preview)"
-          >
-            <Mic className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden md:inline">Live Voice</span>
-          </button>
-
-          {/* Pitch Deck / Demo Action */}
-          <button
-            id="open-pitch-deck-button"
-            onClick={onOpenPitchDeck}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors cursor-pointer"
-            title="Open Pitch Deck & Demo Guide"
-          >
-            <Presentation className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden lg:inline">Pitch Deck</span>
-          </button>
 
           {/* Audio Sound Toggle */}
           {onToggleAudio && (
@@ -371,8 +325,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             </kbd>
             {state.workingTree.length > 0 && (
               <span
-                className={`text-[10px] px-1 rounded-full font-bold ${
-                  isDrawerOpen ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isDrawerOpen ? 'bg-slate-700 text-white' : 'bg-amber-100 text-amber-800 border border-amber-300'
                 }`}
               >
                 {state.workingTree.length}

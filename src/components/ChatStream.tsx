@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   Send,
   Sparkles,
@@ -11,18 +11,14 @@ import {
   Check,
   Eye,
   RotateCcw,
-  AlertTriangle,
   Loader2,
   ChevronRight,
-  Volume2,
-  VolumeX,
   Zap,
   Cpu,
   Brain,
   Shield,
   GraduationCap,
   Dog,
-  Mic,
 } from 'lucide-react';
 import { ChatMessage, RecommendedAction, RepositoryState, ChatRole, ModelTier } from '../types';
 
@@ -38,7 +34,6 @@ interface ChatStreamProps {
   setSelectedRole: (role: ChatRole) => void;
   selectedTier: ModelTier;
   setSelectedTier: (tier: ModelTier) => void;
-  onOpenVoiceModal: () => void;
 }
 
 export const ChatStream: React.FC<ChatStreamProps> = ({
@@ -53,11 +48,9 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
   setSelectedRole,
   selectedTier,
   setSelectedTier,
-  onOpenVoiceModal,
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
-  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -85,58 +78,6 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
     setTimeout(() => setCopiedCmd(null), 2000);
   };
 
-  const handleTTS = async (msgId: string, text: string) => {
-    if (speakingMessageId === msgId) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      setSpeakingMessageId(null);
-      return;
-    }
-
-    setSpeakingMessageId(msgId);
-
-    try {
-      const res = await fetch('/api/voice/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-
-      if (data.success && data.audioBase64) {
-        try {
-          const audio = new Audio(`data:audio/wav;base64,${data.audioBase64}`);
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((e) => {
-              console.warn('Audio play interrupted:', e);
-              setSpeakingMessageId(null);
-            });
-          }
-          audio.onended = () => setSpeakingMessageId(null);
-          audio.onerror = () => setSpeakingMessageId(null);
-          return;
-        } catch (audioErr) {
-          console.warn('Audio instantiation error:', audioErr);
-        }
-      }
-    } catch (_) {}
-
-    // Fallback browser speech synthesis
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text.replace(/[*#`_]/g, ''));
-      utterance.pitch = 1.1;
-      utterance.rate = 1.0;
-      utterance.onend = () => setSpeakingMessageId(null);
-      utterance.onerror = () => setSpeakingMessageId(null);
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setSpeakingMessageId(null);
-    }
-  };
-
   const quickPrompts = [
     'Status report! What needs attention?',
     'EMERGENCY: What is the work-loss risk?',
@@ -154,9 +95,9 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
   ];
 
   const TIERS: { id: ModelTier; label: string; model: string; icon: React.ReactNode }[] = [
-    { id: 'fast', label: 'Fast', model: 'gemini-3.1-flash-lite', icon: <Zap className="w-3 h-3 text-amber-500" /> },
-    { id: 'general', label: 'General', model: 'gemini-3.5-flash', icon: <Sparkles className="w-3 h-3 text-blue-500" /> },
-    { id: 'deep', label: 'Deep', model: 'gemini-3.1-pro-preview', icon: <Brain className="w-3 h-3 text-purple-500" /> },
+    { id: 'fast', label: 'Fast', model: 'gemini-2.5-flash', icon: <Zap className="w-3 h-3 text-amber-500" /> },
+    { id: 'general', label: 'General', model: 'gemini-2.5-flash', icon: <Sparkles className="w-3 h-3 text-blue-500" /> },
+    { id: 'deep', label: 'Deep Reasoning', model: 'gemini-2.5-pro', icon: <Brain className="w-3 h-3 text-purple-500" /> },
   ];
 
   return (
@@ -176,17 +117,6 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
               <p className="text-[10px] text-slate-400">Evidence-based advice & reversible Git actions</p>
             </div>
           </div>
-
-          {/* Live Voice Mode Quick Launcher */}
-          <button
-            id="chat-live-voice-btn"
-            onClick={onOpenVoiceModal}
-            className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-            title="Start hands-free live voice conversation"
-          >
-            <Mic className="w-3 h-3 text-indigo-600" />
-            <span>Live Voice</span>
-          </button>
         </div>
 
         {/* Roles & Model Tiers Controls */}
@@ -238,7 +168,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
       </div>
 
       {/* Message List */}
-      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[520px] min-h-[340px]">
+      <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[600px] min-h-[380px]">
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
@@ -290,19 +220,6 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                         </span>
                       )}
                       <span>{msg.timestamp}</span>
-                      {msg.sender === 'assistant' && (
-                        <button
-                          onClick={() => handleTTS(msg.id, msg.text)}
-                          className="p-1 hover:text-slate-800 text-slate-400 transition-colors cursor-pointer"
-                          title="Read aloud with Byte's voice"
-                        >
-                          {speakingMessageId === msg.id ? (
-                            <VolumeX className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
-                          ) : (
-                            <Volume2 className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      )}
                     </div>
                   </div>
 
@@ -503,7 +420,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-bounce [animation-delay:0.2s]" />
               <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-bounce [animation-delay:0.4s]" />
               <span className="text-[11px] text-slate-500 ml-1">
-                Consulting {selectedTier === 'deep' ? 'gemini-3.1-pro' : selectedTier === 'fast' ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash'}...
+                Consulting {selectedTier === 'deep' ? 'gemini-2.5-pro' : 'gemini-2.5-flash'}...
               </span>
             </div>
           </div>

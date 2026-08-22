@@ -1034,22 +1034,22 @@ async function handleChatRequest(req: express.Request, res: express.Response) {
 
     const effectiveTier = modelTier || tier || 'general';
 
-    // Model selection routing
-    let modelName = 'gemini-3.5-flash';
+    // Model selection routing (Official Google Gemini models)
+    let modelName = 'gemini-2.5-flash';
     if (
       effectiveTier === 'deep' ||
       userPrompt.toLowerCase().includes('complex') ||
       userPrompt.toLowerCase().includes('rebase conflict') ||
       userPrompt.toLowerCase().includes('cherry-pick')
     ) {
-      modelName = 'gemini-3.1-pro-preview';
+      modelName = 'gemini-2.5-pro';
     } else if (
       effectiveTier === 'fast' ||
       userPrompt.toLowerCase().includes('quick') ||
       userPrompt.toLowerCase().includes('fast') ||
       userPrompt.toLowerCase().includes('one liner')
     ) {
-      modelName = 'gemini-3.1-flash-lite';
+      modelName = 'gemini-2.5-flash';
     }
 
     const ai = getGenAI();
@@ -1198,7 +1198,7 @@ app.post('/api/gitpet/analyze', async (req, res) => {
     }
 
     const ai = getGenAI();
-    let modelName = tier === 'deep' ? 'gemini-3.1-pro-preview' : tier === 'fast' ? 'gemini-3.1-flash-lite' : 'gemini-3.5-flash';
+    let modelName = tier === 'deep' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
 
     if (ai) {
       try {

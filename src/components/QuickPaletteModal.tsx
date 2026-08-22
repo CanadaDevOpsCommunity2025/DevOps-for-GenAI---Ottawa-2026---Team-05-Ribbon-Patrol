@@ -52,9 +52,9 @@ interface QuickPaletteModalProps {
   isLiveMode: boolean;
   onToggleLiveMode: () => void;
   onRefreshLive?: () => void;
-  onOpenVoiceModal: () => void;
-  onOpenImageStudio: () => void;
-  onOpenPitchDeck: () => void;
+  onOpenVoiceModal?: () => void;
+  onOpenImageStudio?: () => void;
+  onOpenPitchDeck?: () => void;
   isAudioMuted: boolean;
   onToggleAudio: () => void;
   onPetByte: () => void;
@@ -101,100 +101,106 @@ export const QuickPaletteModal: React.FC<QuickPaletteModalProps> = ({
     }
   }, [isOpen]);
 
-  // Build all available actions
-  const allActions: PaletteAction[] = useMemo(() => {
+  // Build the unified list of quick palette actions
+  const allActions = useMemo(() => {
     const actions: PaletteAction[] = [];
 
     // 1. Guided Demo Actions
-    actions.push({
-      id: 'demo_start',
-      title: isDemoActive ? 'Resume / Advance 90s Guided Demo' : 'Start 90-Second Guided Demo',
-      description: 'Step through the 4-phase ambient repository stewardship loop',
-      category: 'Guided Demo',
-      icon: Play,
-      shortcut: '🚀',
-      badge: '90s Demo',
-      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      keywords: ['demo', 'guided', 'walkthrough', 'pitch', 'rehearsal'],
-      onSelect: () => {
-        if (isDemoActive) {
-          onNextDemoStep();
-        } else {
-          onStartDemo();
-        }
-      },
-    });
-
-    if (isDemoActive) {
+    if (!isDemoActive) {
       actions.push({
-        id: 'demo_restart',
-        title: 'Restart Guided Demo from Step 1',
-        description: 'Reset demo sequence back to pristine clean baseline',
+        id: 'start_demo',
+        title: 'Start 90-Second Guided Demo',
+        description: 'Run the complete deterministic developer story from clean state to resolution',
+        category: 'Guided Demo',
+        icon: Play,
+        badge: '90s Story',
+        badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        keywords: ['demo', 'start', 'presentation', 'run', 'story', 'guided'],
+        onSelect: onStartDemo,
+      });
+    } else {
+      actions.push({
+        id: 'next_demo_step',
+        title: 'Advance Demo to Next Step',
+        description: 'Move forward in the guided demo sequence',
+        category: 'Guided Demo',
+        icon: ArrowRight,
+        keywords: ['next', 'advance', 'step', 'continue'],
+        onSelect: onNextDemoStep,
+      });
+      actions.push({
+        id: 'restart_demo',
+        title: 'Restart 90-Second Demo',
+        description: 'Reset to step 1 (clean repository state)',
         category: 'Guided Demo',
         icon: RotateCcw,
-        keywords: ['restart', 'reset', 'step 1', 'demo'],
+        keywords: ['restart', 'reset', 'again', 'redo'],
         onSelect: onRestartDemo,
       });
     }
 
-    // 2. Repository & Safety
+    // 2. Repository & Safety Actions
     actions.push({
-      id: 'repo_drawer',
-      title: isDrawerOpen ? 'Close Repository Details Drawer' : 'Open Repository Details Drawer',
-      description: 'Inspect working tree diffs, commit DAG topology, and stash history',
+      id: 'toggle_drawer',
+      title: isDrawerOpen ? 'Close Repository Drawer' : 'Open Repository Drawer (DAG & Tree)',
+      description: 'Inspect full commit history, DAG topology, active diffs, and stashes',
       category: 'Repository & Safety',
       icon: Layers,
       shortcut: '⌘B',
-      keywords: ['drawer', 'files', 'diff', 'dag', 'topology', 'stashes', 'audit'],
+      keywords: ['drawer', 'graph', 'dag', 'tree', 'commits', 'stashes', 'diff'],
       onSelect: onToggleDrawer,
     });
 
     if (hasPendingAction && onOpenPreviewAction) {
       actions.push({
-        id: 'action_preview',
-        title: 'Review & Confirm Recommended Safe Action',
-        description: 'Open diff preview dialog with reversible multi-step commands',
+        id: 'preview_action',
+        title: 'Preview Pending Recommended Action',
+        description: 'Inspect file diffs and command details before confirming',
         category: 'Repository & Safety',
-        icon: CheckCircle2,
-        badge: 'Action Ready',
-        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        keywords: ['action', 'preview', 'confirm', 'apply', 'diff', 'stash', 'pull'],
+        icon: Sparkles,
+        badge: 'Action Pending',
+        badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+        keywords: ['preview', 'diff', 'action', 'confirm', 'recommended'],
         onSelect: onOpenPreviewAction,
       });
     }
 
     if (hasAuditHistory && onRollbackLastAction) {
       actions.push({
-        id: 'action_rollback',
-        title: 'Rollback Last Safe Action',
-        description: 'Safely revert previous git command from audit log',
+        id: 'rollback_last',
+        title: 'Rollback Last Executed Action',
+        description: 'Revert working tree and references to prior state',
         category: 'Repository & Safety',
         icon: RotateCcw,
+        badge: 'Undo',
+        badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
         keywords: ['rollback', 'undo', 'revert', 'history'],
         onSelect: onRollbackLastAction,
       });
     }
 
-    // 3. Live Workspace
+    // 3. Live Workspace Scanner Actions
     actions.push({
-      id: 'toggle_live',
-      title: isLiveMode ? 'Switch to Sandbox Presets Mode' : 'Connect Live Workspace Repository',
+      id: 'toggle_live_mode',
+      title: isLiveMode ? 'Switch to Sandbox Presets' : 'Switch to Live Workspace Scanner',
       description: isLiveMode
-        ? 'Return to safe deterministic scenario presets'
-        : 'Scan active local folder with read-only Git status scanner',
+        ? 'Return to simulated repository anomalies for safe testing'
+        : 'Connect directly to your local Git work tree for real-time inspection',
       category: 'Live Workspace',
-      icon: Radio,
-      badge: isLiveMode ? 'Live Mode Active' : 'Opt-in',
-      badgeColor: isLiveMode ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-600',
-      keywords: ['live', 'workspace', 'real', 'scanner', 'sandbox', 'switch'],
+      icon: isLiveMode ? Layers : Radio,
+      badge: isLiveMode ? 'Sandbox' : 'Live Git',
+      badgeColor: isLiveMode
+        ? 'bg-slate-100 text-slate-700 border-slate-200'
+        : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      keywords: ['live', 'workspace', 'local', 'scanner', 'sandbox', 'real'],
       onSelect: onToggleLiveMode,
     });
 
     if (isLiveMode && onRefreshLive) {
       actions.push({
-        id: 'refresh_live',
-        title: 'Scan Local Repository Status Now',
-        description: 'Re-run git status and branch tracking on active repository',
+        id: 'refresh_live_status',
+        title: 'Scan Live Workspace Now',
+        description: 'Re-run local Git status, branch, ahead/behind, and dirty file inspection',
         category: 'Live Workspace',
         icon: RefreshCw,
         keywords: ['scan', 'refresh', 'status', 'live', 'git'],
@@ -230,37 +236,43 @@ export const QuickPaletteModal: React.FC<QuickPaletteModalProps> = ({
     });
 
     // 5. Companion & Studios
-    actions.push({
-      id: 'studio_voice',
-      title: 'Talk to Byte (Live Voice Preview)',
-      description: 'Open real-time conversational voice assistant with audio streaming',
-      category: 'Companion & Studios',
-      icon: Mic,
-      badge: 'Live Voice',
-      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      keywords: ['voice', 'speech', 'audio', 'talk', 'mic', 'gemini live'],
-      onSelect: onOpenVoiceModal,
-    });
+    if (onOpenVoiceModal) {
+      actions.push({
+        id: 'studio_voice',
+        title: 'Talk to Byte (Live Voice Preview)',
+        description: 'Open real-time conversational voice assistant with audio streaming',
+        category: 'Companion & Studios',
+        icon: Mic,
+        badge: 'Live Voice',
+        badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        keywords: ['voice', 'speech', 'audio', 'talk', 'mic', 'gemini live'],
+        onSelect: onOpenVoiceModal,
+      });
+    }
 
-    actions.push({
-      id: 'studio_avatar',
-      title: 'Custom Mascot Avatar Studio',
-      description: 'Generate and edit custom mascot skins with Gemini Imagen',
-      category: 'Companion & Studios',
-      icon: Sparkles,
-      keywords: ['avatar', 'image', 'skin', 'mascot', 'studio', 'imagen'],
-      onSelect: onOpenImageStudio,
-    });
+    if (onOpenImageStudio) {
+      actions.push({
+        id: 'studio_avatar',
+        title: 'Custom Mascot Avatar Studio',
+        description: 'Generate and edit custom mascot skins with Gemini Imagen',
+        category: 'Companion & Studios',
+        icon: Sparkles,
+        keywords: ['avatar', 'image', 'skin', 'mascot', 'studio', 'imagen'],
+        onSelect: onOpenImageStudio,
+      });
+    }
 
-    actions.push({
-      id: 'modal_pitch',
-      title: 'Pitch Deck & Architecture Rehearsal',
-      description: 'View the 5-slide project overview and delivery roadmap',
-      category: 'Companion & Studios',
-      icon: Presentation,
-      keywords: ['pitch', 'deck', 'slides', 'roadmap', 'presentation'],
-      onSelect: onOpenPitchDeck,
-    });
+    if (onOpenPitchDeck) {
+      actions.push({
+        id: 'modal_pitch',
+        title: 'Pitch Deck & Architecture Rehearsal',
+        description: 'View the 5-slide project overview and delivery roadmap',
+        category: 'Companion & Studios',
+        icon: Presentation,
+        keywords: ['pitch', 'deck', 'slides', 'roadmap', 'presentation'],
+        onSelect: onOpenPitchDeck,
+      });
+    }
 
     // 6. Audio & Petting
     actions.push({
