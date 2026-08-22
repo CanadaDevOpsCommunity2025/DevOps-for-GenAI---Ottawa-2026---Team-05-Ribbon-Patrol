@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { execFile } from 'child_process';
 import { evaluateCommand } from './src/server/safety';
 import { basicAuth, isAuthConfigured } from './src/server/auth';
+import { executeApprovedCommand, writesEnabled } from './src/server/executor';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, Modality } from '@google/genai';
@@ -462,6 +463,8 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     service: 'GitPet DevSecOps AI Engine',
     geminiAvailable: !!process.env.GEMINI_API_KEY,
+    writesEnabled: writesEnabled(),
+    workspaceRoot: workspaceRootPath(),
     geminiModelPrimary: 'gemini-2.5-flash',
     geminiModelPro: 'gemini-2.5-pro',
     timestamp: new Date().toISOString(),
@@ -562,6 +565,15 @@ app.get('/api/repo/live', async (req, res) => {
     res.status(502).json({ error: 'Failed to fetch live repository state from GitHub', message: err?.message });
   }
 });
+
+/**
+ * The repository GitPet inspects. Defaults to the server's working directory,
+ * which ties the scanned repo to wherever the app is installed; set
+ * GITPET_WORKSPACE_ROOT to point it at the repository you actually work in.
+ */
+function workspaceRootPath(): string {
+  return process.env.GITPET_WORKSPACE_ROOT?.trim() || process.cwd();
+}
 
 // Live Git Workspace Scanner
 async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
@@ -981,13 +993,86 @@ async function scanLiveWorkspace(workspaceRoot: string = process.cwd()) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Live workspace write actions
+// ---------------------------------------------------------------------------
+//
+// The scanner above stays read-only. These two routes are the only path that
+// can modify a repository, and they are inert unless GITPET_ALLOW_WRITES=true.
+// Both re-check the command against the safety policy at request time, so a
+// client cannot approve something the policy refuses.
+
+/** Builds repository context for the contextual safety lints. */
+async function liveContext() {
+  try {
+    const scan = await scanLiveWorkspace(workspaceRootPath());
+    return scan.repositoryUnavailable || !scan.state ? {} : scan.state;
+  } catch {
+    return {};
+  }
+}
+
+// Preview: reports what would run and why, without touching the repository.
+app.post('/api/git/preview-action', async (req, res) => {
+  const requestId = generateRequestId('git_preview');
+  try {
+    const { command } = req.body ?? {};
+    if (!command || typeof command !== 'string') {
+      return res.status(400).json({ requestId, error: 'A command string is required.' });
+    }
+
+    const result = await executeApprovedCommand(command, workspaceRootPath(), await liveContext(), {
+      dryRun: true,
+    });
+    logRequestAudit(req.path, requestId, 200, 0, `preview: ${result.safety.verdict}`);
+    return res.json({ requestId, ...result });
+  } catch (err: any) {
+    console.error('Error in /api/git/preview-action:', err);
+    return res.status(500).json({ requestId, error: 'Failed to preview action' });
+  }
+});
+
+// Execute: runs an approved command against the live workspace.
+app.post('/api/git/execute-action', async (req, res) => {
+  const requestId = generateRequestId('git_execute');
+  try {
+    const { command } = req.body ?? {};
+    if (!command || typeof command !== 'string') {
+      return res.status(400).json({ requestId, error: 'A command string is required.' });
+    }
+
+    const context = await liveContext();
+    const result = await executeApprovedCommand(command, workspaceRootPath(), context, { dryRun: false });
+
+    // Re-scan so the caller sees the repository as it now is, not as it was.
+    const rescan = await scanLiveWorkspace(workspaceRootPath());
+
+    logRequestAudit(
+      req.path,
+      requestId,
+      result.success ? 200 : 400,
+      0,
+      `execute: ${result.success ? 'ok' : result.message}`
+    );
+
+    return res.status(result.success ? 200 : 400).json({
+      requestId,
+      ...result,
+      state: rescan.state ?? null,
+    });
+  } catch (err: any) {
+    console.error('Error in /api/git/execute-action:', err);
+    return res.status(500).json({ requestId, error: 'Failed to execute action' });
+  }
+});
+
 // API: GET /api/git/live-status (Read-only live repository status scanner)
 app.get('/api/git/live-status', async (req, res) => {
   const startTime = Date.now();
   const requestId = generateRequestId('git_live');
 
   try {
-    const scanResult = await scanLiveWorkspace(process.cwd());
+    const scanResult = await scanLiveWorkspace(workspaceRootPath());
     const duration = Date.now() - startTime;
     logRequestAudit(req.path, requestId, 200, duration, `live scan (${scanResult.repositoryUnavailable ? 'unavailable' : scanResult.state?.currentBranch.name})`);
 
