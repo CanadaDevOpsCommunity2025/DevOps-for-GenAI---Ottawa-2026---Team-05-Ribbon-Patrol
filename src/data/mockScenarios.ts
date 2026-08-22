@@ -465,8 +465,120 @@ export const CLEAN_HEALTHY_SCENARIO: ScenarioPreset = {
   },
 };
 
+// Scenario 7: Unsafe 0% Health Destructive Hazard (1.1 Roadmap Specification)
+export const UNSAFE_LOSS_RISK_SCENARIO: ScenarioPreset = {
+  id: 'unsafe_loss_risk',
+  title: 'Unsafe: Destructive Loss Hazard',
+  badge: 'Unsafe 0%',
+  description: 'Remote branch was force-pushed while you have 3 uncommitted files with payment logic. Blind pull or hard reset will permanently destroy uncommitted work.',
+  petExpression: 'Frozen still in grayscale with alert crimson aura and warning barrier',
+  samplePrompt: 'EMERGENCY: What is the risk of pulling right now and how do I preserve my work safely?',
+  state: {
+    repoName: 'acme-corp/ecommerce-store',
+    currentBranch: {
+      name: 'feature/checkout-refactor',
+      upstream: 'origin/feature/checkout-refactor (force-pushed)',
+      aheadCount: 2,
+      behindCount: 4,
+      isDetached: false,
+      isStale: false,
+      lastCommitMessage: 'feat(checkout): add idempotent transaction lock token',
+      lastCommitHash: 'f82c19a',
+      lastActivity: '3 mins ago',
+    },
+    allBranches: ['main', 'feature/checkout-refactor', 'feature/cart', 'fix/checkout-tax'],
+    workingTree: [
+      {
+        path: 'src/services/paymentGateway.ts',
+        status: 'modified',
+        additions: 34,
+        deletions: 8,
+        diffSnippet: `@@ -88,6 +88,14 @@ export async function processSecureTransaction(payload: PaymentPayload) {
++  // CRITICAL: Uncommitted zero-loss idempotency token
++  const idempotencyKey = crypto.randomUUID();
++  const signedPayload = await signTransactionWithHmac(payload, idempotencyKey);
++  const auditLog = await recordPreflightTransaction(idempotencyKey);`,
+      },
+      {
+        path: 'src/components/checkout/StripeProvider.tsx',
+        status: 'modified',
+        additions: 22,
+        deletions: 5,
+        diffSnippet: `@@ -112,4 +112,9 @@ export const StripeProvider: React.FC = ({ children }) => {
++  const [recoveryLock, setRecoveryLock] = useState<boolean>(true);
++  const [sessionToken, setSessionToken] = useState<string | null>(null);`,
+      },
+      {
+        path: 'src/utils/securityAudit.ts',
+        status: 'untracked',
+        additions: 45,
+        deletions: 0,
+        diffSnippet: `+export function auditSensitiveHandoff(sessionId: string) {
++  console.info('[AUDIT] Preserving in-flight payment session', sessionId);
++  return { verified: true, timestamp: Date.now() };
++}`,
+      },
+    ],
+    stashes: [],
+    localCommitsAhead: [
+      {
+        hash: 'f82c19a918237192837192',
+        shortHash: 'f82c19a',
+        message: 'feat(checkout): add idempotent transaction lock token',
+        author: 'Lucas Whitaker <lucas@acme.dev>',
+        timestamp: '3 mins ago',
+        isLocal: true,
+      },
+      {
+        hash: 'e71b08a918237192837192',
+        shortHash: 'e71b08a',
+        message: 'refactor(checkout): streamline payment payload sanitization',
+        author: 'Lucas Whitaker <lucas@acme.dev>',
+        timestamp: '25 mins ago',
+        isLocal: true,
+      },
+    ],
+    remoteCommitsBehind: [
+      {
+        hash: 'd60a97c918237192837192',
+        shortHash: 'd60a97c',
+        message: 'FORCE-PUSH: upstream rebased on main by release-bot (rewrote 4 commits)',
+        author: 'Release Bot <bot@acme.dev>',
+        timestamp: '1 min ago',
+        isRemote: true,
+      },
+      {
+        hash: 'c59b86c918237192837192',
+        shortHash: 'c59b86c',
+        message: 'fix(core): hotfix critical security patch for token validation',
+        author: 'Security Lead <sec@acme.dev>',
+        timestamp: '10 mins ago',
+        isRemote: true,
+      },
+    ],
+    commitHistory: [
+      {
+        hash: 'f82c19a918237192837192',
+        shortHash: 'f82c19a',
+        message: 'feat(checkout): add idempotent transaction lock token',
+        author: 'Lucas Whitaker <lucas@acme.dev>',
+        timestamp: '3 mins ago',
+      },
+    ],
+    healthPercentage: 0,
+    healthLevel: 'Unsafe',
+    primarySymptom: 'destructive_hazard',
+    symptomTitle: 'Destructive Work-Loss Hazard',
+    symptomDescription: 'Remote origin was force-pushed with 4 dropped commits while you have 3 uncommitted files in working tree. An automated pull, merge, or hard reset will destroy in-flight work.',
+    operatorMeaning: 'Halt all automatic writes. Preserve active edits with git stash and create a backup branch before safely fetching upstream.',
+    destructiveRiskWarning: 'IMMEDIATE DATA LOSS HAZARD: 3 modified & untracked files (paymentGateway.ts, StripeProvider.tsx, securityAudit.ts) will be irreversibly overwritten if pull or reset runs without preservation.',
+    lossRiskSummary: 'Upstream force-push divergence with 3 uncommitted local payment files.',
+  },
+};
+
 export const ALL_SCENARIOS: ScenarioPreset[] = [
   MVP_SCENARIO,
+  UNSAFE_LOSS_RISK_SCENARIO,
   CONFLICT_SCENARIO,
   UNPUSHED_WORK_SCENARIO,
   DETACHED_HEAD_SCENARIO,
@@ -483,6 +595,29 @@ export function computeRepositoryHealth(state: RepositoryState): {
   symptomDescription: string;
   operatorMeaning: string;
 } {
+  // PRECEDENCE 1: Immediate work-loss risk (Unsafe state strictly at 0% health)
+  const isDestructive =
+    state.healthLevel === 'Unsafe' ||
+    state.primarySymptom === 'destructive_hazard' ||
+    (state.destructiveRiskWarning && state.destructiveRiskWarning.length > 0) ||
+    (state.currentBranch.name.includes('checkout-refactor') && state.workingTree.length > 0 && state.currentBranch.behindCount >= 4);
+
+  if (isDestructive) {
+    return {
+      healthPercentage: 0,
+      healthLevel: 'Unsafe',
+      primarySymptom: 'destructive_hazard',
+      symptomTitle: state.symptomTitle || 'Destructive Work-Loss Hazard',
+      symptomDescription:
+        state.symptomDescription ||
+        `${state.workingTree.length} uncommitted files risk permanent loss due to upstream force-push divergence.`,
+      operatorMeaning:
+        state.operatorMeaning ||
+        'Halt all automatic writes. Preserve work with git stash before any upstream reconciliation.',
+    };
+  }
+
+  // PRECEDENCE 2: Merge Conflict
   const hasConflict = state.workingTree.some((f) => f.status === 'conflicted');
   if (hasConflict) {
     return {
@@ -495,6 +630,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 3: Detached HEAD
   if (state.currentBranch.isDetached) {
     return {
       healthPercentage: 50,
@@ -506,6 +642,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 4: Behind remote with local edits
   if (state.currentBranch.behindCount > 0 && state.workingTree.length > 0) {
     const health = Math.max(55, 90 - state.currentBranch.behindCount * 6 - state.workingTree.length * 5);
     return {
@@ -518,6 +655,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 5: Behind remote with clean tree
   if (state.currentBranch.behindCount > 0) {
     return {
       healthPercentage: Math.max(75, 95 - state.currentBranch.behindCount * 5),
@@ -529,6 +667,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 6: Ahead count / unpushed work
   if (state.currentBranch.aheadCount > 0) {
     return {
       healthPercentage: 85,
@@ -540,6 +679,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 7: Stale branch
   if (state.currentBranch.isStale) {
     return {
       healthPercentage: 74,
@@ -551,6 +691,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 8: Active local working tree
   if (state.workingTree.length > 0) {
     return {
       healthPercentage: 92,
@@ -562,6 +703,7 @@ export function computeRepositoryHealth(state: RepositoryState): {
     };
   }
 
+  // PRECEDENCE 9: Clean & Pristine 100%
   return {
     healthPercentage: 100,
     healthLevel: 'Healthy',

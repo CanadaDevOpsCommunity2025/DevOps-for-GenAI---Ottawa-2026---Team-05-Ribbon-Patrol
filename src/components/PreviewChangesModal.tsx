@@ -51,13 +51,47 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
 
           {/* Body Content */}
           <div className="p-6 overflow-y-auto space-y-5 text-left">
+            {/* Destructive Hazard Warning Banner (If Unsafe 0% Health) */}
+            {(state.healthLevel === 'Unsafe' || action.riskLevel === 'Hazard' || state.destructiveRiskWarning) && (
+              <div className="p-4 rounded-xl bg-rose-50 border-2 border-rose-300 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0 animate-pulse" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wide">
+                      Destructive Work-Loss Warning
+                    </h4>
+                    <span className="px-1.5 py-0.2 bg-rose-600 text-white rounded text-[10px] font-bold">
+                      UNSAFE 0%
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-900 leading-relaxed font-medium">
+                    {state.destructiveRiskWarning ||
+                      'Immediate work-loss risk: In-flight local modifications will be permanently destroyed if an automatic pull, merge, or hard reset is executed without safety isolation.'}
+                  </p>
+                  <p className="text-[11px] text-rose-800">
+                    <strong>Recovery Guarantee:</strong> This action first snapshots your active files into a protected stash before performing any upstream reconciliation.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Action Summary Banner */}
-            <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 flex items-start gap-3">
-              <CheckCircle2 className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+            <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
+              state.healthLevel === 'Unsafe'
+                ? 'bg-amber-50/80 border-amber-200'
+                : 'bg-blue-50/70 border-blue-100'
+            }`}>
+              <CheckCircle2 className={`w-4 h-4 mt-0.5 shrink-0 ${
+                state.healthLevel === 'Unsafe' ? 'text-amber-700' : 'text-blue-600'
+              }`} />
               <div>
-                <h4 className="text-xs font-bold text-blue-950">{action.title}</h4>
-                <p className="text-xs text-blue-800/90 mt-0.5">{action.summary}</p>
-                <div className="mt-2 font-mono text-[11px] bg-white text-blue-900 px-2.5 py-1 rounded border border-blue-200 inline-block select-all">
+                <h4 className={`text-xs font-bold ${
+                  state.healthLevel === 'Unsafe' ? 'text-amber-950' : 'text-blue-950'
+                }`}>{action.title}</h4>
+                <p className={`text-xs mt-0.5 ${
+                  state.healthLevel === 'Unsafe' ? 'text-amber-900/90' : 'text-blue-800/90'
+                }`}>{action.summary}</p>
+                <div className="mt-2 font-mono text-[11px] bg-white text-slate-900 px-2.5 py-1 rounded border border-slate-200 inline-block select-all">
                   {action.command}
                 </div>
               </div>
@@ -180,10 +214,18 @@ export const PreviewChangesModal: React.FC<PreviewChangesModalProps> = ({
                 onClose();
                 onConfirmAction();
               }}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 flex items-center gap-2 transition-all"
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all cursor-pointer ${
+                state.healthLevel === 'Unsafe'
+                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
+                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+              }`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Confirm & Tidy Repository</span>
+              <span>
+                {state.healthLevel === 'Unsafe'
+                  ? 'Confirm Safe Work Preservation'
+                  : 'Confirm & Tidy Repository'}
+              </span>
             </button>
           </div>
         </motion.div>

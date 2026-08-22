@@ -6,7 +6,8 @@ export type SymptomType =
   | 'merge_conflict'
   | 'stale_branch'
   | 'detached_head'
-  | 'clean_sync';
+  | 'clean_sync'
+  | 'destructive_hazard';
 
 export interface FileChange {
   path: string;
@@ -63,6 +64,8 @@ export interface RepositoryState {
   symptomTitle: string;
   symptomDescription: string;
   operatorMeaning: string;
+  destructiveRiskWarning?: string;
+  lossRiskSummary?: string;
 }
 
 export interface RecommendedAction {
@@ -72,11 +75,12 @@ export interface RecommendedAction {
   command: string;
   confidence: 'High' | 'Medium' | 'Low';
   confidenceScore: number;
-  riskLevel: 'Safe' | 'Caution' | 'Protected';
+  riskLevel: 'Safe' | 'Caution' | 'Protected' | 'Hazard';
   expectedResult: string;
   reversalStep: string;
   evidence: string[];
   affectedFiles: string[];
+  destructiveLossWarning?: string;
   steps: {
     label: string;
     command: string;

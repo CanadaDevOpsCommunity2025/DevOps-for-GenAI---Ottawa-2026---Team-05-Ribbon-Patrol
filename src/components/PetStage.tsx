@@ -85,6 +85,15 @@ export const PetStage: React.FC<PetStageProps> = ({
           auraShadow: '0 0 45px rgba(239, 68, 68, 0.4)',
         };
       case 'Unsafe':
+        return {
+          glow: 'rgba(225, 29, 72, 0.18)',
+          pulseColor: 'border-rose-500 bg-rose-500/10 text-rose-800',
+          barBg: 'bg-rose-600',
+          badgeBg: 'bg-rose-50 text-rose-800 border-rose-300 ring-2 ring-rose-400/20',
+          icon: ShieldAlert,
+          moodLabel: 'Still & Protected (0%)',
+          auraShadow: '0 0 35px rgba(225, 29, 72, 0.35)',
+        };
       default:
         return {
           glow: 'rgba(100, 116, 139, 0.25)',
@@ -98,16 +107,25 @@ export const PetStage: React.FC<PetStageProps> = ({
     }
   };
 
+  const isUnsafe = state.healthLevel === 'Unsafe' || state.healthPercentage === 0;
   const theme = getHealthTheme(state.healthLevel);
   const StatusIcon = theme.icon;
 
   return (
     <div
       id="gitpet-stage-container"
+      role="region"
+      aria-label={
+        isUnsafe
+          ? 'Repository Status: Unsafe (0% Health) - Immediate work-loss hazard detected'
+          : `Repository Status: ${state.healthLevel} (${state.healthPercentage}% Health)`
+      }
       onClick={handleStageClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative w-full rounded-2xl bg-white border border-slate-200/80 p-6 shadow-sm overflow-hidden select-none cursor-pointer transition-all duration-300 hover:shadow-md"
+      className={`relative w-full rounded-2xl bg-white border p-6 shadow-sm overflow-hidden select-none cursor-pointer transition-all duration-300 hover:shadow-md ${
+        isUnsafe ? 'border-rose-300/90 ring-2 ring-rose-500/15' : 'border-slate-200/80'
+      }`}
     >
       {/* Background ambient radial glow */}
       <motion.div
@@ -126,10 +144,12 @@ export const PetStage: React.FC<PetStageProps> = ({
             animate={{ opacity: 0, scale: 1.4, y: h.y - 65, x: h.x + (Math.random() * 20 - 10) }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1, ease: 'easeOut' }}
-            className="absolute pointer-events-none z-30 text-rose-500 flex items-center gap-1 font-medium text-xs bg-white/90 px-2 py-0.5 rounded-full shadow-sm"
+            className={`absolute pointer-events-none z-30 flex items-center gap-1 font-medium text-xs bg-white/90 px-2 py-0.5 rounded-full shadow-sm ${
+              isUnsafe ? 'text-slate-600 border border-slate-300' : 'text-rose-500'
+            }`}
           >
-            <Heart className="w-3.5 h-3.5 fill-rose-500" />
-            <span>*purrs safely*</span>
+            <Heart className={`w-3.5 h-3.5 ${isUnsafe ? 'fill-slate-500 text-slate-500' : 'fill-rose-500'}`} />
+            <span>{isUnsafe ? '*guards uncommitted work*' : '*purrs safely*'}</span>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -140,13 +160,16 @@ export const PetStage: React.FC<PetStageProps> = ({
           <div
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${theme.badgeBg}`}
           >
-            <StatusIcon className="w-3.5 h-3.5" />
-            <span>{state.healthLevel.toUpperCase()}</span>
+            <StatusIcon className={`w-3.5 h-3.5 ${isUnsafe ? 'text-rose-700' : ''}`} />
+            <span className="tracking-wide">{state.healthLevel.toUpperCase()}</span>
             <span className="opacity-40">•</span>
-            <span className="font-normal text-slate-600">{theme.moodLabel}</span>
+            <span className={`font-normal ${isUnsafe ? 'text-rose-900 font-semibold' : 'text-slate-600'}`}>
+              {theme.moodLabel}
+            </span>
           </div>
 
-          <span className="text-xs text-slate-500 hidden sm:inline-block">
+          <span className="text-xs text-slate-500 hidden sm:inline-block font-medium">
+            {state.primarySymptom === 'destructive_hazard' && '⚠️ Destructive Loss Hazard'}
             {state.primarySymptom === 'behind_remote' && '🐕 Leash tension toward remote'}
             {state.primarySymptom === 'unpushed_work' && '🎒 Heavy local backpack'}
             {state.primarySymptom === 'merge_conflict' && '🧶 Tangled conflict yarn'}
@@ -196,9 +219,15 @@ export const PetStage: React.FC<PetStageProps> = ({
           {/* Render Either Custom AI Generated Avatar or Interactive Vector Pet */}
           {customAvatarUrl && avatarMode === 'custom' ? (
             <motion.div
-              className="relative flex items-center justify-center"
-              animate={{ y: isHovered ? -8 : [0, -6, 0] }}
-              transition={{ duration: 2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }}
+              className={`relative flex items-center justify-center transition-all duration-500 ${
+                isUnsafe ? 'grayscale contrast-125' : ''
+              }`}
+              animate={{ y: isUnsafe ? 0 : isHovered ? -8 : [0, -6, 0] }}
+              transition={
+                isUnsafe
+                  ? { duration: 0 }
+                  : { duration: 2, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' }
+              }
             >
               <div className="relative w-44 h-44 rounded-3xl overflow-hidden border-4 border-white shadow-xl ring-4 ring-blue-500/20 bg-slate-900">
                 <img
@@ -213,11 +242,13 @@ export const PetStage: React.FC<PetStageProps> = ({
               </div>
             </motion.div>
           ) : (
-            <PetGraphic
-              symptom={state.primarySymptom}
-              healthLevel={state.healthLevel}
-              isHovered={isHovered}
-            />
+            <div className={`transition-all duration-500 ${isUnsafe ? 'grayscale contrast-125' : ''}`}>
+              <PetGraphic
+                symptom={state.primarySymptom}
+                healthLevel={state.healthLevel}
+                isHovered={isHovered}
+              />
+            </div>
           )}
         </div>
 
@@ -298,18 +329,22 @@ interface PetGraphicProps {
 }
 
 const PetGraphic: React.FC<PetGraphicProps> = ({ symptom, healthLevel, isHovered }) => {
-  const bounceTransition = {
-    duration: symptom === 'merge_conflict' ? 0.8 : symptom === 'stale_branch' ? 3.5 : 1.8,
-    repeat: Infinity,
-    repeatType: 'reverse' as const,
-    ease: 'easeInOut',
-  };
+  const isUnsafe = healthLevel === 'Unsafe';
+
+  const bounceTransition = isUnsafe
+    ? { duration: 0 }
+    : {
+        duration: symptom === 'merge_conflict' ? 0.8 : symptom === 'stale_branch' ? 3.5 : 1.8,
+        repeat: Infinity,
+        repeatType: 'reverse' as const,
+        ease: 'easeInOut' as const,
+      };
 
   return (
     <motion.div
       className="relative flex items-center justify-center"
       animate={{
-        y: isHovered ? -8 : [0, -6, 0],
+        y: isUnsafe ? 0 : isHovered ? -8 : [0, -6, 0],
       }}
       transition={bounceTransition}
     >
@@ -344,15 +379,25 @@ const PetGraphic: React.FC<PetGraphicProps> = ({ symptom, healthLevel, isHovered
           strokeWidth="8"
           strokeLinecap="round"
           animate={{
-            rotate: symptom === 'clean_sync' ? [-15, 25, -15] : symptom === 'stale_branch' ? [0, 0] : [-5, 10, -5],
+            rotate: isUnsafe
+              ? 0
+              : symptom === 'clean_sync'
+              ? [-15, 25, -15]
+              : symptom === 'stale_branch'
+              ? [0, 0]
+              : [-5, 10, -5],
             originX: '60px',
             originY: '120px',
           }}
-          transition={{
-            duration: symptom === 'clean_sync' ? 0.4 : 1.2,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          transition={
+            isUnsafe
+              ? { duration: 0 }
+              : {
+                  duration: symptom === 'clean_sync' ? 0.4 : 1.2,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }
+          }
         />
 
         {/* Pet Body */}
@@ -368,22 +413,34 @@ const PetGraphic: React.FC<PetGraphicProps> = ({ symptom, healthLevel, isHovered
           d="M 72 56 C 60 25, 75 15, 82 45 Z"
           fill="url(#earGradient)"
           animate={{
-            rotate: symptom === 'behind_remote' ? [-12, -8] : symptom === 'merge_conflict' ? [-18, 5, -18] : [-4, 4, -4],
+            rotate: isUnsafe
+              ? -6
+              : symptom === 'behind_remote'
+              ? [-12, -8]
+              : symptom === 'merge_conflict'
+              ? [-18, 5, -18]
+              : [-4, 4, -4],
             originX: '78px',
             originY: '50px',
           }}
-          transition={{ duration: 1.4, repeat: Infinity }}
+          transition={isUnsafe ? { duration: 0 } : { duration: 1.4, repeat: Infinity }}
         />
         {/* Right Ear */}
         <motion.path
           d="M 128 56 C 140 25, 125 15, 118 45 Z"
           fill="url(#earGradient)"
           animate={{
-            rotate: symptom === 'behind_remote' ? [8, 12] : symptom === 'merge_conflict' ? [5, -18, 5] : [4, -4, 4],
+            rotate: isUnsafe
+              ? 6
+              : symptom === 'behind_remote'
+              ? [8, 12]
+              : symptom === 'merge_conflict'
+              ? [5, -18, 5]
+              : [4, -4, 4],
             originX: '122px',
             originY: '50px',
           }}
-          transition={{ duration: 1.4, repeat: Infinity }}
+          transition={isUnsafe ? { duration: 0 } : { duration: 1.4, repeat: Infinity }}
         />
 
         {/* Paws */}
@@ -391,6 +448,35 @@ const PetGraphic: React.FC<PetGraphicProps> = ({ symptom, healthLevel, isHovered
         <ellipse cx="122" cy="142" rx="10" ry="7" fill="#1D4ED8" />
 
         {/* Face Elements depending on symptom */}
+        {symptom === 'destructive_hazard' && (
+          <g>
+            {/* Alert focused wide eyes */}
+            <circle cx="90" cy="67" r="6" fill="#FFFFFF" />
+            <circle cx="90" cy="67" r="3.5" fill="#DC2626" />
+            <circle cx="110" cy="67" r="6" fill="#FFFFFF" />
+            <circle cx="110" cy="67" r="3.5" fill="#DC2626" />
+            {/* Focused nose & firm guarded mouth */}
+            <circle cx="100" cy="74" r="3" fill="#1E293B" />
+            <line x1="94" y1="80" x2="106" y2="80" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Warning Shield & Work-Loss Barrier in front of mascot */}
+            <g transform="translate(76, 102)">
+              <motion.path
+                d="M 24 2 L 44 8 L 44 26 C 44 38, 24 46, 24 46 C 24 46, 4 38, 4 26 L 4 8 Z"
+                fill="#DC2626"
+                stroke="#FEE2E2"
+                strokeWidth="2"
+                animate={{ scale: [1, 1.05, 1], opacity: [0.92, 1, 0.92] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <text x="24" y="29" fontSize="20" fontWeight="900" fill="#FFFFFF" textAnchor="middle">
+                !
+              </text>
+            </g>
+            {/* Hazard alert outline pulse ring */}
+            <circle cx="100" cy="115" r="50" fill="none" stroke="#EF4444" strokeWidth="2" strokeDasharray="5 3" opacity="0.75" />
+          </g>
+        )}
+
         {symptom === 'clean_sync' && (
           <g>
             {/* Happy curved eyes */}

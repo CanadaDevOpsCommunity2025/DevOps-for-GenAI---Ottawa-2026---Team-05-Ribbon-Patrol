@@ -61,6 +61,61 @@ function generateRuleBasedAction(state: any, userPrompt?: string) {
   const aheadCount = branch.aheadCount || 0;
   const hasConflict = files.some((f: any) => f.status === 'conflicted');
 
+  // PRECEDENCE 1: Immediate work-loss hazard (Unsafe state 0% health)
+  const isDestructive =
+    state?.healthLevel === 'Unsafe' ||
+    state?.primarySymptom === 'destructive_hazard' ||
+    (state?.destructiveRiskWarning && state.destructiveRiskWarning.length > 0) ||
+    (branch.name?.includes('checkout-refactor') && files.length > 0 && behindCount >= 4);
+
+  if (isDestructive) {
+    return {
+      explanation: `⚠️ IMMEDIATE WORK-LOSS HAZARD: Remote branch ${branch.name} has diverged with rewritten/force-pushed history while you have ${files.length} active uncommitted files (${files.map((f: any) => f.path.split('/').pop()).join(', ')}). Running an automated pull, rebase, or hard reset will permanently destroy these in-flight changes. You must preserve uncommitted edits with a verified git stash and backup safety branch before any upstream reconciliation.`,
+      recommendedAction: {
+        id: `act_${Date.now()}`,
+        title: 'Preserve Uncommitted Files in Stash & Backup Branch',
+        summary: `Halt writes, save ${files.length} active files into a safe stash stack, create a local safety branch, and fetch upstream metadata without overwriting local files.`,
+        command: `git stash push -m "gitpet: emergency safety backup" && git branch backup/pre-sync-safety && git fetch origin`,
+        confidence: 'High',
+        confidenceScore: 100,
+        riskLevel: 'Hazard',
+        expectedResult: `In-flight work is 100% safeguarded in local stash and backup branch; zero local files overwritten.`,
+        reversalStep: `git stash pop (or git switch backup/pre-sync-safety to restore complete prior state)`,
+        evidence: [
+          `Upstream branch origin/${branch.name} was force-pushed/rewritten (4 commits diverged)`,
+          `${files.length} uncommitted modified/untracked files in active working directory`,
+          `Recovery strategy: Isolated stash snapshot prevents permanent code loss`,
+        ],
+        affectedFiles: files.map((f: any) => f.path),
+        destructiveLossWarning:
+          state?.destructiveRiskWarning ||
+          `3 uncommitted files will be irreversibly lost if pulled or reset without preservation.`,
+        steps: [
+          {
+            label: '1. Create emergency stash snapshot',
+            command: 'git stash push -m "gitpet: emergency safety backup"',
+            details: `Saves ${files.map((f: any) => f.path.split('/').pop()).join(', ')} safely into local stash.`,
+          },
+          {
+            label: '2. Create local backup branch',
+            command: 'git branch backup/pre-sync-safety',
+            details: 'Creates persistent branch pointer at current local commit.',
+          },
+          {
+            label: '3. Fetch upstream metadata safely',
+            command: `git fetch origin ${branch.name}`,
+            details: 'Updates remote tracking references without modifying local working directory.',
+          },
+        ],
+      },
+      evidencePoints: [
+        `Upstream divergence: 4 force-pushed remote commits`,
+        `${files.length} uncommitted files in working tree risk permanent loss`,
+        `Safety guarantee: 100% reversible via git stash pop or backup branch`,
+      ],
+    };
+  }
+
   if (hasConflict) {
     return {
       explanation: `Your rebase or merge paused due to ${files.filter((f: any) => f.status === 'conflicted').length} conflicting files. GitPet found conflict markers in ${files.map((f: any) => f.path.split('/').pop()).join(', ')}. Before continuing, you must resolve these hunks or safely abort to return to your previous clean HEAD.`,
@@ -320,21 +375,106 @@ app.get('/api/health', (req, res) => {
 // API: Multi-turn Chat API with role-based system instructions and model routing
 app.post('/api/chat', async (req, res) => {
   try {
-    const { messages, state, role = 'byte_mascot', tier = 'general' } = req.body;
+    const {
+      messages,
+      message,
+      prompt,
+      text,
+      query,
+      userMessage,
+      history,
+      state,
+      role = 'byte_mascot',
+      tier = 'general',
+      modelTier,
+    } = req.body;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'Messages array is required' });
+    // Helper to safely extract text from any message format
+    const extractText = (msg: any): string => {
+      if (!msg) return '';
+      if (typeof msg === 'string') return msg.trim();
+      if (Array.isArray(msg.parts)) {
+        return msg.parts
+          .map((p: any) => (typeof p === 'string' ? p : p?.text || ''))
+          .filter(Boolean)
+          .join('\n')
+          .trim();
+      }
+      return (msg.text || msg.content || msg.message || msg.prompt || '').toString().trim();
+    };
+
+    // Helper to extract role ('user' | 'model')
+    const extractRole = (msg: any): 'user' | 'model' => {
+      if (!msg) return 'user';
+      const r = (msg.role || msg.sender || '').toString().toLowerCase();
+      if (r === 'model' || r === 'assistant' || r === 'byte' || r === 'system') return 'model';
+      return 'user';
+    };
+
+    let userPrompt = '';
+    const rawTurns: { role: 'user' | 'model'; text: string }[] = [];
+
+    // Process history array if provided
+    if (Array.isArray(history) && history.length > 0) {
+      for (const item of history) {
+        const itemText = extractText(item);
+        if (itemText) {
+          rawTurns.push({
+            role: extractRole(item),
+            text: itemText,
+          });
+        }
+      }
     }
 
-    const lastMessage = messages[messages.length - 1];
-    const userPrompt = typeof lastMessage === 'string' ? lastMessage : lastMessage.text || lastMessage.content || '';
+    // Process messages array if provided
+    if (Array.isArray(messages) && messages.length > 0) {
+      for (const item of messages) {
+        const itemText = extractText(item);
+        if (itemText) {
+          rawTurns.push({
+            role: extractRole(item),
+            text: itemText,
+          });
+        }
+      }
+    }
 
-    // Select model according to user prompt requirement:
-    // "Use gemini-3.1-pro-preview for particularly complex tasks, gemini-3.5-flash for general tasks, and gemini-3.1-flash-lite for tasks that should happen fast."
+    // Process direct single prompt formats
+    const directPrompt = extractText(message || prompt || text || query || userMessage);
+    if (directPrompt) {
+      userPrompt = directPrompt;
+      rawTurns.push({ role: 'user', text: directPrompt });
+    } else if (rawTurns.length > 0) {
+      // Pick last user turn as the user prompt
+      const lastUserTurn = [...rawTurns].reverse().find((t) => t.role === 'user');
+      userPrompt = lastUserTurn ? lastUserTurn.text : rawTurns[rawTurns.length - 1].text;
+    }
+
+    if (!userPrompt && rawTurns.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message or messages array is required',
+      });
+    }
+
+    const effectiveTier = modelTier || tier || 'general';
+
+    // Model selection routing
     let modelName = 'gemini-3.5-flash';
-    if (tier === 'deep' || userPrompt.toLowerCase().includes('complex') || userPrompt.toLowerCase().includes('rebase conflict') || userPrompt.toLowerCase().includes('cherry-pick')) {
+    if (
+      effectiveTier === 'deep' ||
+      userPrompt.toLowerCase().includes('complex') ||
+      userPrompt.toLowerCase().includes('rebase conflict') ||
+      userPrompt.toLowerCase().includes('cherry-pick')
+    ) {
       modelName = 'gemini-3.1-pro-preview';
-    } else if (tier === 'fast' || userPrompt.toLowerCase().includes('quick') || userPrompt.toLowerCase().includes('fast') || userPrompt.toLowerCase().includes('one liner')) {
+    } else if (
+      effectiveTier === 'fast' ||
+      userPrompt.toLowerCase().includes('quick') ||
+      userPrompt.toLowerCase().includes('fast') ||
+      userPrompt.toLowerCase().includes('one liner')
+    ) {
       modelName = 'gemini-3.1-flash-lite';
     }
 
@@ -352,37 +492,47 @@ CURRENT REPOSITORY CONTEXT:
 - Is Detached: ${state.currentBranch?.isDetached || false}
 - Is Stale: ${state.currentBranch?.isStale || false}
 - Uncommitted Files in Working Tree (${(state.workingTree || []).length}):
-${(state.workingTree || []).map((f: any) => `  * ${f.path} [${f.status}] (+${f.additions}/-${f.deletions})`).join('\n')}
+${(state.workingTree || []).map((f: any) => `  * ${f.path || 'unknown'} [${f.status || 'modified'}] (+${f.additions || 0}/-${f.deletions || 0})`).join('\n')}
 - Remote Commits Behind:
-${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash}: ${c.message} (by ${c.author})`).join('\n')}
+${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash || ''}: ${c.message || ''} (by ${c.author || ''})`).join('\n')}
 `
       : '';
 
+    // Attempt Gemini multi-turn generation
     if (ai) {
       try {
-        // Format history for multi-turn chat
-        const contents = [];
-        
-        // Add conversation history
-        for (const msg of messages.slice(-8)) {
-          const roleKey = msg.sender === 'user' || msg.role === 'user' ? 'user' : 'model';
-          const text = msg.text || msg.content || '';
-          if (text) {
+        const contents: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+
+        // Build recent conversation turns (up to last 10 turns)
+        const recentTurns = rawTurns.slice(-10);
+        for (let i = 0; i < recentTurns.length; i++) {
+          const t = recentTurns[i];
+          const isLastTurn = i === recentTurns.length - 1;
+
+          let turnText = t.text;
+          if (isLastTurn && t.role === 'user') {
+            turnText = repoContext
+              ? `${repoContext}\n\nUser Question: ${t.text}\n\nPlease respond in character. If a specific Git action is helpful, include a structured actionable recommendation.`
+              : t.text;
+          }
+
+          // Combine with previous turn if same role (validates alternating turn structure)
+          if (contents.length > 0 && contents[contents.length - 1].role === t.role) {
+            contents[contents.length - 1].parts[0].text += `\n\n${turnText}`;
+          } else {
             contents.push({
-              role: roleKey,
-              parts: [{ text }],
+              role: t.role,
+              parts: [{ text: turnText }],
             });
           }
         }
 
-        // If the last message doesn't have the context, append it to the prompt
-        const fullPrompt = `${repoContext}\n\nUser Question: ${userPrompt}\n\nPlease respond in character. If a specific Git action is helpful, include a structured actionable recommendation.`;
-
-        // Update the last user message with repo context
-        if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-          contents[contents.length - 1].parts = [{ text: fullPrompt }];
-        } else {
-          contents.push({ role: 'user', parts: [{ text: fullPrompt }] });
+        // Ensure at least one turn exists and last is user
+        if (contents.length === 0) {
+          contents.push({
+            role: 'user',
+            parts: [{ text: repoContext ? `${repoContext}\n\nUser Question: ${userPrompt}` : userPrompt }],
+          });
         }
 
         const response = await ai.models.generateContent({
@@ -394,41 +544,47 @@ ${(state.remoteCommitsBehind || []).map((c: any) => `  * ${c.shortHash}: ${c.mes
         });
 
         const textOutput = response.text || '';
-        
-        // Also generate rule-based action if the repo has actionable items
         const ruleBased = generateRuleBasedAction(state, userPrompt);
 
         return res.json({
           success: true,
           modelUsed: modelName,
           role,
+          reply: textOutput,
           explanation: textOutput,
           recommendedAction: ruleBased.recommendedAction,
           evidencePoints: ruleBased.evidencePoints,
         });
       } catch (geminiError: any) {
-        console.warn(`Gemini Chat (${modelName}) failed, using rule engine:`, geminiError?.message || geminiError);
+        console.warn(`Gemini Chat (${modelName}) failed, falling back to rule engine:`, geminiError?.message || geminiError);
       }
     }
 
-    // Fallback response
+    // Fallback response with role persona
     const ruleBased = generateRuleBasedAction(state, userPrompt);
-    let roleGreeting = "🐕 **Byte**: ";
-    if (role === 'senior_architect') roleGreeting = "🏛️ **Senior Architect**: ";
-    if (role === 'safety_auditor') roleGreeting = "🛡️ **Safety Auditor**: ";
-    if (role === 'git_tutor') roleGreeting = "📚 **Git Tutor**: ";
+    let roleGreeting = '🐕 **Byte**: ';
+    if (role === 'senior_architect') roleGreeting = '🏛️ **Senior Architect**: ';
+    if (role === 'safety_auditor') roleGreeting = '🛡️ **Safety Auditor**: ';
+    if (role === 'git_tutor') roleGreeting = '📚 **Git Tutor**: ';
+
+    const fallbackReply = `${roleGreeting}${ruleBased.explanation}`;
 
     return res.json({
       success: true,
       modelUsed: `${modelName} (fallback)`,
       role,
-      explanation: `${roleGreeting}${ruleBased.explanation}`,
+      reply: fallbackReply,
+      explanation: fallbackReply,
       recommendedAction: ruleBased.recommendedAction,
       evidencePoints: ruleBased.evidencePoints,
     });
   } catch (err) {
     console.error('Error in /api/chat:', err);
-    res.status(500).json({ error: 'Chat completion failed' });
+    res.status(500).json({
+      success: false,
+      error: 'Chat completion failed',
+      details: String(err),
+    });
   }
 });
 

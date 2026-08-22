@@ -44,6 +44,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const isHealthy = state.healthLevel === 'Healthy';
   const isAttention = state.healthLevel === 'Attention';
   const isBlocked = state.healthLevel === 'Blocked';
+  const isUnsafe = state.healthLevel === 'Unsafe';
 
   return (
     <header
@@ -59,15 +60,27 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span className="text-base">🐕</span>
               <span
                 className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                  isHealthy ? 'bg-emerald-500' : isAttention ? 'bg-amber-500' : 'bg-rose-500'
+                  isHealthy
+                    ? 'bg-emerald-500'
+                    : isAttention
+                    ? 'bg-amber-500'
+                    : isBlocked
+                    ? 'bg-rose-500'
+                    : 'bg-rose-600 ring-2 ring-rose-300 animate-pulse'
                 }`}
               />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-slate-900 tracking-tight text-sm">GitPet</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                  Ambient
+                <span
+                  className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border ${
+                    isUnsafe
+                      ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                  }`}
+                >
+                  {isUnsafe ? 'UNSAFE 0%' : 'Ambient'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-mono hidden md:block">
@@ -120,7 +133,11 @@ export const TopBar: React.FC<TopBarProps> = ({
           {/* Ahead/Behind Sync Pill */}
           <div
             id="sync-status-pill"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono bg-slate-100 text-slate-700 border border-slate-200/80"
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono border ${
+              isUnsafe
+                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                : 'bg-slate-100 text-slate-700 border-slate-200/80'
+            }`}
           >
             <span className={state.currentBranch.aheadCount > 0 ? 'text-blue-600 font-bold' : 'text-slate-400'}>
               ↑{state.currentBranch.aheadCount}
@@ -129,6 +146,11 @@ export const TopBar: React.FC<TopBarProps> = ({
             <span className={state.currentBranch.behindCount > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}>
               ↓{state.currentBranch.behindCount}
             </span>
+            {isUnsafe && (
+              <span className="text-[10px] font-bold text-rose-700 bg-rose-200/70 px-1 py-0.2 rounded ml-1">
+                HAZARD
+              </span>
+            )}
           </div>
         </div>
 

@@ -102,6 +102,14 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
       content: (
         <div className="space-y-3 text-left">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            <div className="p-2 rounded-lg bg-rose-100 border-2 border-rose-300">
+              <div className="font-bold text-rose-950 flex items-center gap-1">
+                <span>⚠️ Unsafe (0%)</span>
+              </div>
+              <p className="text-[10px] text-rose-800 mt-0.5 font-medium">
+                Frozen still, grayscale & crimson alert pulse
+              </p>
+            </div>
             <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
               <div className="font-bold text-emerald-900">Synchronized (100%)</div>
               <p className="text-[10px] text-emerald-700 mt-0.5">Playful, bouncy tail & emerald glow</p>
@@ -121,10 +129,6 @@ export const PitchDeckModal: React.FC<PitchDeckModalProps> = ({
             <div className="p-2 rounded-lg bg-slate-100 border border-slate-300">
               <div className="font-bold text-slate-900">Detached HEAD</div>
               <p className="text-[10px] text-slate-600 mt-0.5">Looking lost with wandering compass</p>
-            </div>
-            <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200">
-              <div className="font-bold text-indigo-900">Stale Branch</div>
-              <p className="text-[10px] text-indigo-700 mt-0.5">Sleepy, nightcap & dusty Zzz</p>
             </div>
           </div>
         </div>

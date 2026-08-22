@@ -16,6 +16,7 @@ import {
   computeRepositoryHealth,
   CLEAN_HEALTHY_SCENARIO,
   CONFLICT_SCENARIO,
+  UNSAFE_LOSS_RISK_SCENARIO,
 } from './data/mockScenarios';
 import {
   RepositoryState,
@@ -252,9 +253,23 @@ export default function App() {
       let updatedStashes = [...repoState.stashes];
       let updatedRemoteBehind = [...repoState.remoteCommitsBehind];
 
-      if (action.title.includes('Stash') || action.title.includes('Pull')) {
+      if (action.title.includes('Stash') || action.title.includes('Pull') || action.title.includes('Preserve') || action.command.includes('pre-sync')) {
         updatedBehind = 0;
         updatedRemoteBehind = [];
+        if (updatedWorkingTree.length > 0) {
+          updatedStashes = [
+            {
+              id: `stash_${Date.now()}`,
+              index: updatedStashes.length,
+              message: 'gitpet: emergency safety backup before sync',
+              timestamp: 'Just now',
+              fileCount: updatedWorkingTree.length,
+              files: updatedWorkingTree.map((f) => f.path),
+            },
+            ...updatedStashes,
+          ];
+          updatedWorkingTree = [];
+        }
       }
 
       if (action.title.includes('Conflict') || action.title.includes('Rebase')) {
@@ -282,6 +297,8 @@ export default function App() {
         workingTree: updatedWorkingTree,
         remoteCommitsBehind: updatedRemoteBehind,
         stashes: updatedStashes,
+        destructiveRiskWarning: undefined,
+        lossRiskSummary: undefined,
       };
 
       const healthCalc = computeRepositoryHealth(nextBaseState);
@@ -443,6 +460,16 @@ export default function App() {
     handleSendMessage('Conflict alert! What files are blocking the rebase?', selectedRole, selectedTier);
   };
 
+  const handleInjectUnsafeRisk = () => {
+    setRepoState(UNSAFE_LOSS_RISK_SCENARIO.state);
+    setActiveScenarioId(UNSAFE_LOSS_RISK_SCENARIO.id);
+    handleSendMessage(
+      'EMERGENCY: What is the work-loss risk and how do I preserve my work safely?',
+      selectedRole,
+      selectedTier
+    );
+  };
+
   const handleResetToClean = () => {
     setRepoState(CLEAN_HEALTHY_SCENARIO.state);
     setActiveScenarioId(CLEAN_HEALTHY_SCENARIO.id);
@@ -523,6 +550,7 @@ export default function App() {
           onInjectRemoteCommit={handleInjectRemoteCommit}
           onInjectLocalEdit={handleInjectLocalEdit}
           onInjectConflict={handleInjectConflict}
+          onInjectUnsafeRisk={handleInjectUnsafeRisk}
           onResetToClean={handleResetToClean}
         />
 

@@ -139,6 +139,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 
   const quickPrompts = [
     'Status report! What needs attention?',
+    'EMERGENCY: What is the work-loss risk?',
     'Explain branch divergence',
     'How safe is pulling from upstream?',
     'Review my uncommitted changes',
@@ -326,17 +327,35 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                   <motion.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="p-4 rounded-2xl bg-white border-2 border-blue-200 shadow-md text-left space-y-3"
+                    className={`p-4 rounded-2xl bg-white border-2 shadow-md text-left space-y-3 ${
+                      state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
+                        ? 'border-rose-300 ring-2 ring-rose-500/10'
+                        : 'border-blue-200'
+                    }`}
                   >
                     {/* Action Header */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-lg bg-blue-50 text-blue-700">
+                        <div
+                          className={`p-1.5 rounded-lg ${
+                            state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}
+                        >
                           <ShieldCheck className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
-                            Recommended Safe Action
+                          <div
+                            className={`text-[10px] font-bold uppercase tracking-wider ${
+                              state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
+                                ? 'text-rose-700'
+                                : 'text-blue-600'
+                            }`}
+                          >
+                            {state.healthLevel === 'Unsafe'
+                              ? 'Emergency Work-Loss Prevention'
+                              : 'Recommended Safe Action'}
                           </div>
                           <h4 className="text-xs font-bold text-slate-900">{msg.recommendedAction.title}</h4>
                         </div>
@@ -347,7 +366,9 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            msg.recommendedAction.riskLevel === 'Safe'
+                            msg.recommendedAction.riskLevel === 'Hazard'
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300 font-extrabold'
+                              : msg.recommendedAction.riskLevel === 'Safe'
                               ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : 'bg-amber-50 text-amber-700 border border-amber-200'
                           }`}
@@ -415,17 +436,25 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                           id={`confirm-tidy-action-btn-${msg.id}`}
                           onClick={() => onExecuteAction(msg.recommendedAction!)}
                           disabled={executingActionId === msg.recommendedAction.id}
-                          className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                          className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer ${
+                            state.healthLevel === 'Unsafe' || msg.recommendedAction.riskLevel === 'Hazard'
+                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
+                              : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                          }`}
                         >
                           {executingActionId === msg.recommendedAction.id ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Executing & Verifying...</span>
+                              <span>Preserving & Synchronizing...</span>
                             </>
                           ) : (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Confirm & Tidy Action</span>
+                              <span>
+                                {state.healthLevel === 'Unsafe'
+                                  ? 'Confirm Safe Preservation'
+                                  : 'Confirm & Tidy Action'}
+                              </span>
                             </>
                           )}
                         </button>
