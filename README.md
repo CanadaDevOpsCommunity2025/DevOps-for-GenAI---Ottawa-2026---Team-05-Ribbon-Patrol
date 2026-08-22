@@ -126,15 +126,42 @@ Navigate to: **`http://localhost:3000`**
 | `npm run dev` | Starts the TypeScript development server with hot reloading on port 3000 |
 | `npm run build` | Bundles frontend with Vite & builds server to `dist/server.cjs` via `esbuild` |
 | `npm run start` | Executes the built production server (`dist/server.cjs`) |
+| `npm run test` | Runs the automated unit and adversarial security test suite (Vitest) |
+| `npm run sbom` | Generates a complete JSON dependency inventory / SBOM |
 | `npm run preview` | Previews the Vite static build |
 | `npm run lint` | Runs TypeScript type checking without emitting files |
 | `npm run clean` | Removes `dist/` build output |
 
 ---
 
+## 🔒 Security, AI Governance & Production Documentation
+
+To satisfy the **DevOps for GenAI Hackathon 2026 Production Standards**, comprehensive documentation and test evidence have been integrated into this repository:
+
+1. 🛡️ **[Security Threat Model & STRIDE Analysis](docs/SECURITY_THREAT_MODEL.md):** Trust boundaries, secret sanitization, tool permissions, and OWASP LLM Top 10 defenses.
+2. 📋 **[AI Governance & System Card](docs/AI_GOVERNANCE.md):** Model traceability (Gemini 2.5 Flash/Pro), data classification, human oversight matrix, and incident escalation protocols.
+3. 📖 **[Operations & SRE Runbook](docs/RUNBOOK.md):** Live health monitoring (`/api/health`), audit telemetry (`/api/audit-logs`), troubleshooting, and failure recovery.
+4. ⚙️ **[CI/CD Pipeline (.github/workflows/ci.yml)](.github/workflows/ci.yml):** Automated TypeScript linting, adversarial test suites, Gitleaks secret scanning, and SBOM artifact generation.
+
+---
+
+## 🤖 AI Usage & Assisted Tooling Disclosure
+
+In accordance with Hackathon Guideline **P-06 (AI Transparency)**:
+- **Runtime AI Models:** Powered by **Google Gemini 2.5 Flash** (default high-throughput reasoning), **Gemini 2.5 Pro** (deep architecture analysis), **Imagen 3** (avatar image generation), and **Gemini Live API** (low-latency bidirectional audio/video streaming).
+- **Development & Coding Assistance:** Development workflow was accelerated using AI pair-programming tools (Google Gemini / Antigravity) for rapid UI component structuring, scenario test mocking, and documentation formatting. All architectural boundaries, safety gates, and test suites were audited and verified by the team.
+
+---
+
 ## 📁 Repository Structure
 
 ```
+├── .github/workflows/      # GitHub Actions CI/CD (Lint, Test, Secret Scan, SBOM, Build)
+├── docs/                   # Architecture, Governance, Threat Model, Runbook & Roadmaps
+│   ├── AI_GOVERNANCE.md    # AI System Card, Model Card, Human Oversight Matrix
+│   ├── SECURITY_THREAT_MODEL.md # STRIDE Threat Model & OWASP LLM Mitigations
+│   ├── RUNBOOK.md          # SRE & Operational Troubleshooting Guide
+│   └── kubepet/roadmap/    # Multi-phase engineering roadmap
 ├── src/
 │   ├── components/         # React components (PetStage, ChatStream, TopBar, Modals, etc.)
 │   ├── data/               # Scenario presets and practice stats
@@ -142,6 +169,8 @@ Navigate to: **`http://localhost:3000`**
 │   ├── App.tsx             # Main dashboard UI logic & state management
 │   ├── index.css           # Tailwind & base styling
 │   └── main.tsx            # React application entry point
+├── tests/
+│   └── security.test.ts    # Adversarial prompt injection & action approval gate tests
 ├── server.ts               # Express server, WebSocket endpoints & Gemini API service integration
 ├── dist/                   # Production build output
 ├── .env.example            # Environment variables template
@@ -159,9 +188,11 @@ Navigate to: **`http://localhost:3000`**
 3. **Live Voice & Vision:** Click the microphone icon to initiate a Gemini Live WebSocket audio/video session.
 4. **Pet Image Studio:** Click the palette/avatar icon to generate custom pet avatars with custom prompts.
 5. **Pitch Deck Mode:** Click the "Pitch Deck" button in the navigation header to open an interactive slide presentation detailing the project's architecture, value proposition, and roadmap.
+6. **Live Telemetry & Health:** Query `/api/health` and `/api/audit-logs` for real-time observability into model latency and audited actions.
 
 ---
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

@@ -406,24 +406,83 @@ function generateRequestId(prefix = 'req'): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
 }
 
-function logRequestAudit(endpoint: string, reqId: string, statusCode: number, durationMs: number, extra?: string) {
-  // Redacts tokens, audio, file system paths, and raw image data
-  console.log(`[API ${statusCode}] ${endpoint} | reqId: ${reqId} | latency: ${durationMs}ms${extra ? ` | ${extra}` : ''}`);
+// In-memory Structured Telemetry & Audit Log Buffer (FIFO, max 200 events)
+interface AuditLogEvent {
+  id: string;
+  timestamp: string;
+  endpoint: string;
+  statusCode: number;
+  durationMs: number;
+  modelUsed?: string;
+  humanApprovalRequired?: boolean;
+  extra?: string;
 }
 
-// API: Health check
+const auditLogBuffer: AuditLogEvent[] = [];
+const MAX_AUDIT_LOGS = 200;
+
+function logRequestAudit(
+  endpoint: string,
+  reqId: string,
+  statusCode: number,
+  durationMs: number,
+  extra?: string,
+  modelUsed?: string,
+  humanApprovalRequired?: boolean
+) {
+  const event: AuditLogEvent = {
+    id: reqId,
+    timestamp: new Date().toISOString(),
+    endpoint,
+    statusCode,
+    durationMs,
+    modelUsed,
+    humanApprovalRequired,
+    extra: extra ? extra.replace(/AIza[0-9A-Za-z-_]{35}/g, '[REDACTED_SECRET]') : undefined,
+  };
+
+  auditLogBuffer.unshift(event);
+  if (auditLogBuffer.length > MAX_AUDIT_LOGS) {
+    auditLogBuffer.pop();
+  }
+
+  console.log(`[AUDIT ${statusCode}] ${endpoint} | reqId: ${reqId} | ${durationMs}ms${modelUsed ? ` | model: ${modelUsed}` : ''}${extra ? ` | ${extra}` : ''}`);
+}
+
+// API: Health check & Operational Telemetry
 app.get('/api/health', (req, res) => {
   const reqId = generateRequestId('health');
   res.json({
     requestId: reqId,
-    status: 'ok',
-    service: 'GitPet Engine',
+    status: 'healthy',
+    service: 'GitPet DevSecOps AI Engine',
     geminiAvailable: !!process.env.GEMINI_API_KEY,
+    geminiModelPrimary: 'gemini-2.5-flash',
+    geminiModelPro: 'gemini-2.5-pro',
     timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    memoryUsageMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
     assetStats: {
       registeredCount: assetRegistry.size,
       currentApprovedId: currentApprovedAssetId,
     },
+    telemetry: {
+      totalAuditedRequests: auditLogBuffer.length,
+      averageLatencyMs: auditLogBuffer.length
+        ? Math.round(auditLogBuffer.reduce((acc, curr) => acc + curr.durationMs, 0) / auditLogBuffer.length)
+        : 0,
+    },
+  });
+});
+
+// API: Audit Logs for Live Telemetry Dashboard inspection
+app.get('/api/audit-logs', (req, res) => {
+  const limit = Math.min(parseInt(String(req.query.limit || '50'), 10), 200);
+  res.json({
+    success: true,
+    count: auditLogBuffer.slice(0, limit).length,
+    totalBuffered: auditLogBuffer.length,
+    events: auditLogBuffer.slice(0, limit),
   });
 });
 
