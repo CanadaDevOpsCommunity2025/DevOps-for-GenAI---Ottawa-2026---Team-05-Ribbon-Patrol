@@ -565,8 +565,12 @@ export default function App() {
   };
 
   // Default on load: pull real state from the public GitHub test fixture
-  // instead of starting on a hardcoded mock scenario.
+  // instead of starting on a hardcoded mock scenario. Guarded against
+  // StrictMode's dev-only double-invoke of mount effects.
+  const hasLoadedLiveOnMount = React.useRef(false);
   useEffect(() => {
+    if (hasLoadedLiveOnMount.current) return;
+    hasLoadedLiveOnMount.current = true;
     handleLoadLiveRepo(LIVE_REPO.defaultBranch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
