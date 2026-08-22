@@ -8,7 +8,7 @@
 
 ### Team Members
 - **Project Lead:** Aliasgar Husain (`Alhusain@rbbn.com`)
-- **Participants:** Aliasgar Husain, Dilvir Singh Saini, Lucas Whitaker, David Castelli, Charisma Pulyala
+- **Participants:** Aliasgar Husain, Dilvir Singh Saini (Did not attend), Lucas Whitaker, David Castelli, Faris Nour
 
 ---
 
