@@ -159,7 +159,7 @@ jobs:
           tags: ribbon-patrol:test
 
       - name: Scan Container Image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ribbon-patrol:test
           format: table
