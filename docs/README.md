@@ -1,206 +1,179 @@
-# Functional Specification Document: KubePet
+# Functional Specification Document: GitPet
 
 ## 1. Executive Summary & Core Philosophy
 
-Traditional observability tools force engineers to correlate metrics, logs, and alerts under pressure. That work delays the first safe response during an incident.\
-KubePet is an incident copilot with ambient awareness. It turns Kubernetes signals into an expressive pet state, explains the likely cause with evidence, and proposes one safe recovery action for human approval.<br>
+Repository work often hides important context across branches, remotes, and local changes. GitPet makes that state visible without requiring a terminal-first investigation.\
+GitPet is a repository management companion with ambient awareness. It maps repository signals to an expressive pet state. It explains issues clearly and proposes one safe Git action for approval.<br>
 
-KubePet follows a simple incident loop:<br>
+GitPet follows a simple repository loop:<br>
 
-1. **Notice:** The pet makes cluster health visible from across the room.<br>
-2. **Understand:** The operator receives an evidence-based explanation in plain language.<br>
-3. **Recover:** The operator approves a bounded, reversible remediation action.<br>
+1. **Notice:** The pet makes repository health visible at a glance.<br>
+2. **Understand:** The developer receives an evidence-based explanation in plain language.<br>
+3. **Resolve:** The developer approves a bounded, reversible repository action.<br>
 
 #### 2. Product Objectives & Target Metrics
 
-
-
-* Sub-Second Ambient Status: Enable any engineer across the room to discern whether the cluster is healthy, degraded, or failing based on pet posture, mood, and canvas color palette.<br>
-* Lower-Cognitive-Load Triage: Reduce early investigation effort through plain-language, evidence-based explanations.<br>
-* Human-Approved Recovery: Let the AI propose one bounded, reversible tool call that requires operator confirmation.<br>
-* Explainable Recommendations: Show the signals, confidence, expected impact, and rollback path for every action.<br>
-* Reliability Practice: Reinforce evidence review, verified recovery, and post-incident follow-through.<br>
+* **At-a-glance repository status:** Surface healthy, attention, and blocked states through posture, mood, and color.<br>
+* **Lower cognitive load:** Explain branch divergence, conflicts, and uncommitted work in plain language.<br>
+* **Human-approved actions:** Require confirmation for every write operation.<br>
+* **Explainable recommendations:** Show repository evidence, expected impact, and reversal steps.<br>
+* **Safer Git habits:** Reward review, clean handoffs, and verified repository state.<br>
 
 #### 3. Core Mechanics & State Machine
 
-
-
 **Health & Emotional State Mapping**
 
+The pet state combines **Repository Health** and **Repository Symptom**. Health conveys urgency. Symptoms identify the repository condition.<br>
 
+| **Health** | **Health %** | **Visual treatment**         | **Operator meaning**                        |
+| ---------- | ------------ | ---------------------------- | ------------------------------------------- |
+| Healthy    | 90–100%      | Relaxed, playful, green glow | Branch is synchronized and clean            |
+| Attention  | 60–89%       | Uneasy, amber pulse          | Review local or remote differences          |
+| Blocked    | 1–59%        | Distressed, red pulse        | Resolve a conflict or protect work          |
+| Unsafe     | 0%           | Still, grayscale             | Action could lose work without intervention |
 
-The pet state combines two vectors: **Health** and **Symptom**. Health conveys urgency. Symptoms reveal the failure pattern.<br>
+| **Symptom**    | **Pet expression**  | **Repository signal**                     |
+| -------------- | ------------------- | ----------------------------------------- |
+| Behind remote  | Pulling on a leash  | Local branch is behind its upstream       |
+| Unpushed work  | Carrying a backpack | Commits or changes exist only locally     |
+| Merge conflict | Tangled yarn        | Conflicting files block a merge or rebase |
+| Stale branch   | Sleepy and dusty    | Branch is merged or inactive              |
+| Detached HEAD  | Looking lost        | HEAD does not point to a named branch     |
 
-| **Health**  | **Health %** | **Visual treatment**         | **Operator meaning** |
-| ----------- | ------------ | ---------------------------- | -------------------- |
-| Healthy     | 90–100%      | Relaxed, playful, green glow | Normal operation     |
-| Degraded    | 60–89%       | Uneasy, amber pulse          | Investigate soon     |
-| Critical    | 1–59%        | Distressed, red pulse        | Act now              |
-| Unavailable | 0%           | Still, grayscale             | Service outage       |
+**Repository practice**
 
-| **Symptom** | **Pet expression**      | **Example signal**                |
-| ----------- | ----------------------- | --------------------------------- |
-| Overloaded  | Sweating, sprinting     | CPU saturation and rising latency |
-| Memory sick | Nauseous, spinning eyes | OOM kills and restart loops       |
-| Isolated    | Shivering or frozen     | Node `NotReady`                   |
-| Unavailable | Ghostly or still        | No healthy serving pods           |
+Practice mechanics reward safe repository work, not fast clicks. They remain secondary to the task at hand.<br>
 
-**Reliability Practice**
-
-
-
-Reliability mechanics reward safe operations, not fast clicks. They remain secondary to incident response.<br>
-
-* Evidence Review: Award a Reliability Streak when the operator reviews the recommendation evidence.<br>
-* Verified Recovery: Award progress only after health signals return to baseline.<br>
-* Incident Closure: Award Runbook Mastery for completing the concise incident summary.<br>
+* **Change review:** Award a Clean Commit streak when the developer reviews a proposed diff.<br>
+* **Verified sync:** Award progress after branch status is confirmed clean and synchronized.<br>
+* **Safe handoff:** Award Branch Stewardy for merging or archiving a branch with clear context.<br>
 
 #### 4. End-to-End User Experience & Interaction Loop
 
-
-
 ```
-  [ Healthy Pet ]  --->  ( Incident Triggered )  --->  [ Pet Signals Distress ]
+  [ Healthy Pet ]  --->  ( Repository Changes )  --->  [ Pet Signals a Symptom ]
          ^                                                       |
          |                                                       v
-  [ Verified Recovery ] <--- ( Operator Approves ) <--- [ Evidence-Based Diagnosis ]
+  [ Verified Repository ] <--- ( Developer Approves ) <--- [ Evidence-Based Guidance ]
 ```
 
-**1. Idle Ambient Monitoring**
+**1. Idle repository awareness**
 
+* The developer keeps GitPet open beside their editor or terminal.<br>
+* The pet idles while the active branch is clean and synchronized.<br>
+* A compact top bar displays repository, branch, sync status, and Clean Commit streak.<br>
 
+**2. Repository change and emotional shift**
 
-* The operator keeps KubePet open on an ambient monitor or pinned browser tab.<br>
-* The pet idles peacefully while health metrics sit at baseline.<br>
-* A minimalist top telemetry bar displays Cluster Health, Latency, and Reliability Streak.<br>
+* A repository event occurs, such as remote commits, uncommitted changes, or a merge conflict.<br>
+* The health bar changes, ambient accents shift, and the pet adopts a matching expression.<br>
 
-**2. Anomaly Ingestion & Emotional Shift**
+**3. Conversational repository guidance**
 
-
-
-* An infrastructure fault occurs (or is simulated via the Chaos Engine).<br>
-* The health bar depletes, ambient UI accents transition to warning colors, and the pet immediately shifts into its distress animation.<br>
-
-**3. Conversational Root-Cause Analysis**
-
-
-
-* The user opens the chat box: _"What's hurting?"_ or _"Status report!"_\
+* The developer opens the chat: _"What needs attention?"_ or _"Status report!"_\
   <br>
-*   The LLM ingests the structured incident payload and responds in character with supporting signals:<br>
+*   The assistant reads structured repository metadata and responds with supporting signals:<br>
 
-    > _"I am overwhelmed. `checkout-service` is using 98% CPU, 504 responses increased 420%, and all 2 pods are busy. This is capacity saturation."_\
+    > _"`feature/cart` is three commits behind `origin/feature/cart`. You also have two uncommitted files. Save or stash those changes before pulling."_\
     > <br>
 
-**4. Agentic Remediation & Approval Gate**
+**4. Safe action and approval gate**
 
+*   The assistant generates one concrete, bounded repository action:<br>
 
-
-*   The AI generates one concrete, bounded tool-execution proposal:<br>
-
-    > **Recommended action:** `scale_deployment(service="checkout-service", replicas=8)`\\
+    > **Recommended action:** Stash local changes, then pull from `origin/feature/cart`.\\
     >
     > **Confidence:** High\\
     >
-    > **Expected result:** Reduce CPU pressure and 504 responses.\\
+    > **Expected result:** Preserve local work and synchronize the branch.\\
     >
-    > **Rollback:** Scale the deployment back to 2 replicas.\
+    > **Reversal:** Restore the stash after the pull.\
     > <br>
-* The UI shows evidence, confidence, expected impact, and rollback before the action card.<br>
-* The UI renders an interactive \[Confirm & Heal] action card within the chat stream.<br>
-* Upon user click, the agent triggers the mock remediation endpoint.<br>
-* The pet recovers only after signals return to baseline.<br>
-* The UI then shows a concise incident summary and verified-recovery state.<br>
+* The UI shows evidence, confidence, expected impact, and reversal before the action card.<br>
+* The UI renders a **Preview changes** view before approval.<br>
+* The developer can inspect affected files, commits, and branch movement.<br>
+* The UI renders an interactive **Confirm & tidy** action card in the chat stream.<br>
+* The pet recovers only after repository status is rechecked.<br>
+* The UI then shows a concise repository summary and verified state.<br>
 
-#### 5. Live Demo Scenarios (The Chaos Matrix)
+#### 5. Live Demo Scenarios (The Repository Matrix)
 
-
-
-The hackathon MVP perfects one deterministic scenario: a traffic spike. It demonstrates the complete notice-understand-recover loop in under 90 seconds.<br>
+The hackathon MVP perfects one deterministic scenario: a branch synchronization conflict. It demonstrates the complete notice-understand-resolve loop in under 90 seconds.<br>
 
 ```
 +-----------------------------------------------------------------------------------+
-|                                 CHAOS SCENARIO MATRIX                             |
+|                              REPOSITORY SCENARIO MATRIX                           |
 +-----------------------------------------------------------------------------------+
-| Scenario         | MVP Status      | AI Diagnosis             | Target Tool Call  |
+| Scenario         | MVP Status      | GitPet guidance          | Target action     |
 +------------------+-----------------+--------------------------+-------------------+
-| Traffic Spike    | Full demo       | Checkout capacity issue  | scale_replicas    |
-| Memory Leak      | Scenario card   | OOM kill loop in Auth    | rollback_version  |
-| Dead Node        | Scenario card   | Node NotReady            | cordon_and_drain  |
+| Behind + changes | Full demo       | Protect local work first | stash then pull   |
+| Merge conflict   | Scenario card   | Resolve two changed files| open diff         |
+| Stale branch     | Scenario card   | Branch is already merged | archive branch    |
 +-----------------------------------------------------------------------------------+
 ```
 
-**MVP scenario: Black Friday Traffic Surge**
+**MVP scenario: Remote updates with local work**
 
-
-
-* Telemetry Profile: Request rate surges 500%, CPU spikes to 100%, HTTP 504 timeouts spike.<br>
-* Pet Emotion: Hyperventilating, sprinting on a hamster wheel, sweat drops.<br>
-* AI Explanation: _"Too many people are knocking at the door. `checkout-service` has only 2 pods, CPU is 98%, and 504s increased 420%."_\
+* Repository profile: The remote branch gains three commits. Two local files remain uncommitted.<br>
+* Pet emotion: Carrying an overfilled backpack and pulling toward the remote.<br>
+* GitPet explanation: _"`feature/cart` is behind by three commits. Your local edits are not committed. Stash them before pulling to avoid mixing unfinished work with incoming changes."_\
   <br>
-* Agentic Action: `scale_deployment(service="checkout-service", replicas=8)`.<br>
-* Verification: CPU falls below 60%, latency normalizes, and 504 responses return to baseline.<br>
+* Proposed action: Stash local changes, then pull remote commits.<br>
+* Verification: The branch matches its upstream and the local work remains recoverable.<br>
 
 **Demo sequence**
 
-
-
-1. Show the calm pet and healthy checkout service.<br>
-2. Trigger the traffic spike and show the immediate visual shift.<br>
-3. Ask for a status report and review the evidence-backed recommendation.<br>
-4. Approve scaling, verify recovery, and display the incident summary.<br>
+1. Show the calm pet and a clean, synchronized branch.<br>
+2. Trigger remote commits and local edits. Show the visual shift.<br>
+3. Ask for a status report. Review the evidence-backed recommendation.<br>
+4. Preview and approve the safe action. Verify synchronization and preserved work.<br>
 
 #### 6. UI & Visual Design Specification
-
-
 
 The UI follows a strict Minimalist Neumorphic / Flat-Modern web styling guide to avoid visual noise:<br>
 
 * Color Palette:<br>
   * _Canvas Background:_ Slate Light (`#F8FAFC`) / Off-White (`#FAF9F7`)<br>
   * _Card Surfaces:_ Pure White (`#FFFFFF`) with subtle border lines (`#E2E8F0`)<br>
-  * _Accent Primaries:_ Vibrant SRE Blue (`#2563EB`) and Emerald Healthy (`#10B981`)<br>
-  * _Alert Accents:_ Amber Degraded (`#F59E0B`) and Crimson Outage (`#EF4444`)<br>
+  * _Accent Primaries:_ Repository Blue (`#2563EB`) and Sync Green (`#10B981`)<br>
+  * _Attention Accents:_ Amber (`#F59E0B`) and Conflict Crimson (`#EF4444`)<br>
 * Layout Topology:<br>
-  * Top Bar (Header): Pet Name, Reliability Streak, and Global Status Chip (Healthy / Degraded / Critical / Unavailable).<br>
+  * Top Bar (Header): Pet name, repository, current branch, and status chip.<br>
   * Center Canvas: The pet stage, symptom expression, and health aura.<br>
-  * Bottom Section: A streamlined chat stream with an evidence and approval card.<br>
-  * Debug Drawer: An expandable panel for raw mock telemetry during the live presentation.<br>
+  * Bottom Section: A streamlined chat stream with evidence and approval cards.<br>
+  * Repository Drawer: An expandable panel for branch, commit, and working-tree details.<br>
 
 #### 7. Team Sprint Division (8-Hour Hackathon Plan)
-
-
 
 ```
 [ Track A: UI & Visuals ] ----> Component Library ----> Canvas & Pet Animation ----+
                                                                                   |
-[ Track B: AI & Tools ]   ----> Prompt Engineering  --> Function Call Engine  -----+---> [ Integration &
+[ Track B: AI & Tools ]   ----> Prompt Engineering  --> Git Action Engine     -----+---> [ Integration &
                                                                                   |       Demo Rehearsal ]
-[ Track C: State Engine ] ----> Mock Backend REST   --> State Transitions     ----+
+[ Track C: State Engine ] ----> Mock Repository API --> State Transitions     ----+
                                                                                   |
-[ Track D: Narrative ]    ----> Pitch Deck Design   --> Mock Log Generation   ----+
+[ Track D: Narrative ]    ----> Pitch Deck Design   --> Mock Repository Data  ----+
 ```
 
 * Role 1: Frontend & Visual Experience (UI Lead)<br>
   * Build main canvas, responsive layout, animated pet container, and chat log component.<br>
   * Implement ambient styling transitions based on backend state.<br>
 * Role 2: Prompt Engineering & LLM Routing (AI Lead)<br>
-  * Construct a persona-driven prompt that cites incident evidence and confidence.<br>
-  * Wire the `scale` tool call to the mock recovery endpoint.<br>
+  * Construct a persona-driven prompt that cites repository evidence and confidence.<br>
+  * Wire approved repository actions to the mock state engine.<br>
 * Role 3: State Machine & REST Engine (Backend Lead)<br>
-  * Build lightweight state API with endpoints: `GET /status`, `POST /chaos/:scenarioId`, and `POST /remediate`.<br>
-  * Implement the traffic-spike state transition and post-remediation verification.<br>
+  * Build a lightweight repository-state service for status, scenarios, and actions.<br>
+  * Implement branch divergence, local edits, and post-action verification.<br>
 * Role 4: Scenario Content & Pitch Strategy (Product/Pitch Lead)<br>
-  * Write the realistic traffic-spike payload and evidence narrative.<br>
+  * Write realistic branch-divergence data and an evidence narrative.<br>
   * Construct a high-impact 5-slide pitch deck and rehearse the 90-second demo.<br>
 
 #### 8. Explicit Out-Of-Scope Guardrails
 
-
-
 To ensure complete delivery within the 8-hour sprint window, the following are strictly prohibited:<br>
 
-* Connecting live cloud providers (AWS, GCP, live Kubernetes clusters).<br>
+* Kubernetes, observability dashboards, infrastructure alerts, and deployment pipelines.<br>
+* Automatic pushes, merges, rebases, resets, or deletions without developer approval.<br>
+* Live repository hosting integrations for the MVP.<br>
 * Persistent databases or multi-tenant user authentication.<br>
-* Real-time voice-to-text / text-to-speech pipelines.<br>
-* Autonomous background time-decay mechanics (state must remain stable until deliberately triggered).
+* Autonomous actions or background state changes.<br>
